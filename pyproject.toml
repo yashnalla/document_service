@@ -1,0 +1,29 @@
+[tool.poetry]
+name = "document-service"
+version = "0.1.0"
+description = "Django document service"
+authors = ["Your Name <you@example.com>"]
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.12"
+Django = "^4.2.7"
+python-dotenv = "^1.0.0"
+psycopg2-binary = "^2.9.7"
+redis = "^5.0.1"
+djangorestframework = "^3.14.0"
+django-cors-headers = "^4.3.1"
+
+[tool.poetry.group.dev.dependencies]
+black = "^23.0.0"
+pytest = "^7.4.0"
+pytest-cov = "^4.1.0"
+pytest-django = "^4.5.0"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "document_service.settings"
+python_files = ["tests.py", "test_*.py", "*_tests.py"]
+addopts = "-v --tb=short"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
