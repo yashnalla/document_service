@@ -1,9 +1,11 @@
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
+from rest_framework.permissions import AllowAny
 
 
 @api_view(["GET"])
+@permission_classes([AllowAny])
 def api_root(request, format=None):
     return Response(
         {
@@ -15,6 +17,7 @@ def api_root(request, format=None):
 
 
 @api_view(["GET"])
+@permission_classes([AllowAny])
 def api_docs(request):
     return Response(
         {
@@ -32,8 +35,8 @@ def api_docs(request):
                 "GET /api/documents/my_documents/": "List current user's documents",
                 "GET /health/": "Health check endpoint",
             },
-            "authentication": "Session-based authentication",
-            "permissions": "Read-only for anonymous users, full CRUD for authenticated users on their own documents",
+            "authentication": "Token-based authentication (Header: Authorization: Token <token>)",
+            "permissions": "Authentication required for all document operations",
             "pagination": "Page-based pagination with 20 items per page",
             "search": "Use ?search=query parameter on document list endpoint",
         }
