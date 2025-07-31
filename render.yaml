@@ -1,0 +1,56 @@
+services:
+  - type: web
+    name: document-service
+    runtime: docker
+    repo: https://github.com/yashnalla/document_service
+    region: oregon
+    branch: main
+    dockerfilePath: ./Dockerfile
+    numInstances: 1
+    plan: starter
+    healthCheckPath: /health/
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "false"
+      - key: POSTGRES_DB
+        fromDatabase:
+          name: document-service-db
+          property: database
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: document-service-db
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: document-service-db
+          property: password
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: document-service-db
+          property: host
+      - key: POSTGRES_PORT
+        fromDatabase:
+          name: document-service-db
+          property: port
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: document-service-redis
+          property: connectionString
+      - key: ALLOWED_HOSTS
+        value: "*"
+
+  - type: redis
+    name: document-service-redis
+    region: oregon
+    plan: starter
+    maxmemoryPolicy: allkeys-lru
+
+databases:
+  - name: document-service-db
+    databaseName: document_db
+    user: document_user
+    region: oregon
+    plan: starter
