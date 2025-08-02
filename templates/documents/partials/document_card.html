@@ -1,0 +1,107 @@
+<div class="col-md-6 col-lg-4 mb-4" x-data="documentCard()">
+    <div class="card h-100 document-card">
+        <div class="card-body">
+            <h5 class="card-title">
+                <a href="{% url 'document_detail' document.pk %}" class="text-decoration-none">
+                    {{ document.title|truncatechars:50 }}
+                </a>
+            </h5>
+            
+            <p class="card-text text-muted">
+                {{ document.get_plain_text|truncatechars:100|default:"No content yet..." }}
+            </p>
+            
+            <div class="card-text">
+                <small class="text-muted">
+                    <div>Version {{ document.version }}</div>
+                    <div>Modified {{ document.updated_at|timesince }} ago</div>
+                    {% if document.last_modified_by and document.last_modified_by != document.created_by %}
+                        <div>by {{ document.last_modified_by.username }}</div>
+                    {% endif %}
+                </small>
+            </div>
+        </div>
+        
+        <div class="card-footer bg-transparent">
+            <div class="btn-group w-100">
+                <a href="{% url 'document_detail' document.pk %}" class="btn btn-primary btn-sm">
+                    ✏️ Edit
+                </a>
+                <button type="button" 
+                        class="btn btn-outline-danger btn-sm"
+                        @click="confirmDelete()"
+                        :disabled="deleting">
+                    <span x-show="!deleting">🗑️</span>
+                    <span x-show="deleting">
+                        <span class="spinner-border spinner-border-sm" role="status"></span>
+                    </span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function documentCard() {
+        return {
+            deleting: false,
+            
+            confirmDelete() {
+                if (confirm('Are you sure you want to delete "{{ document.title|escapejs }}"?')) {
+                    this.deleteDocument();
+                }
+            },
+            
+            async deleteDocument() {
+                this.deleting = true;
+                
+                try {
+                    const response = await fetch('{% url "document_delete" document.pk %}', {
+                        method: 'DELETE',
+                        headers: {
+                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        // Remove the card with animation
+                        const card = this.$el;
+                        card.style.transition = 'opacity 0.3s, transform 0.3s';
+                        card.style.opacity = '0';
+                        card.style.transform = 'scale(0.9)';
+                        
+                        setTimeout(() => {
+                            card.remove();
+                        }, 300);
+                        
+                        // Show success message
+                        this.showMessage('Document deleted successfully!', 'success');
+                    } else {
+                        this.showMessage('Failed to delete document. Please try again.', 'danger');
+                    }
+                } catch (error) {
+                    this.showMessage('Failed to delete document. Please check your connection.', 'danger');
+                } finally {
+                    this.deleting = false;
+                }
+            },
+            
+            showMessage(message, type) {
+                const container = document.querySelector('.container');
+                const alert = document.createElement('div');
+                alert.className = `alert alert-${type} alert-dismissible fade show`;
+                alert.innerHTML = `
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                container.insertBefore(alert, container.firstChild);
+                
+                // Auto-dismiss after 3 seconds
+                setTimeout(() => {
+                    alert.remove();
+                }, 3000);
+            }
+        };
+    }
+</script>

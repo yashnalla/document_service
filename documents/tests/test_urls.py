@@ -58,7 +58,7 @@ def test_document_detail_url_resolves(user):
 @pytest.mark.django_db
 def test_router_configuration():
     """Test that router is configured correctly."""
-    from documents.urls import router
+    from api.urls import router
 
     assert isinstance(router, DefaultRouter)
 
@@ -145,19 +145,20 @@ def test_url_patterns_include():
     """Test that URL patterns are properly included."""
     from documents.urls import urlpatterns
 
-    # Should have one pattern that includes router URLs
-    assert len(urlpatterns) == 1
+    # Should have 5 patterns: web routes only (API moved to api/urls.py)
+    assert len(urlpatterns) == 5
 
-    # The pattern should include 'api/' prefix
-    pattern = urlpatterns[0]
-    assert str(pattern.pattern) == "api/"
+    # Check that web routes are present
+    pattern_strings = [str(pattern.pattern) for pattern in urlpatterns]
+    assert "" in pattern_strings  # document_list
+    assert "create/" in pattern_strings  # document_create
 
 
 @pytest.mark.django_db
 def test_api_namespace(user):
     """Test that documents are under /api/ namespace."""
     url = reverse("document-list")
-    assert url.startswith("/api/")
+    assert url == "/api/documents/"
 
     document = Document.objects.create(
         title="Test Document",
@@ -166,7 +167,7 @@ def test_api_namespace(user):
     )
 
     detail_url = reverse("document-detail", kwargs={"pk": document.pk})
-    assert detail_url.startswith("/api/")
+    assert detail_url == f"/api/documents/{document.pk}/"
 
 
 @pytest.mark.django_db
@@ -190,7 +191,7 @@ def test_trailing_slash_consistency(user):
 @pytest.mark.django_db
 def test_router_basename():
     """Test router basename configuration."""
-    from documents.urls import router
+    from api.urls import router
 
     # Get the registered routes
     registry = router.registry

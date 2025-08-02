@@ -1,0 +1,205 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ document.title }} - Document Service{% endblock %}
+
+{% block content %}
+<div x-data="documentEditor()" x-init="init()">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="{% url 'document_list' %}">My Documents</a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">
+                    <span x-text="title || 'Untitled Document'"></span>
+                </li>
+            </ol>
+        </nav>
+        
+        <div class="d-flex align-items-center">
+            <!-- Save Status -->
+            <div class="me-3">
+                <span x-show="saving" class="badge bg-warning">
+                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    Saving...
+                </span>
+                <span x-show="!saving && !isDirty" class="badge bg-success">
+                    ✓ Saved
+                </span>
+                <span x-show="!saving && isDirty" class="badge bg-secondary">
+                    Unsaved changes
+                </span>
+            </div>
+            
+            <!-- Actions -->
+            <div class="btn-group">
+                <button type="button" class="btn btn-outline-primary" @click="save()" :disabled="saving">
+                    <span x-show="!saving">💾 Save</span>
+                    <span x-show="saving">
+                        <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                        Saving...
+                    </span>
+                </button>
+                <button type="button" class="btn btn-outline-danger" 
+                        hx-delete="{% url 'document_delete' document.pk %}"
+                        hx-confirm="Are you sure you want to delete this document?"
+                        hx-target="#delete-target"
+                        hx-swap="innerHTML">
+                    🗑️ Delete
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Document Editor -->
+    <div class="card">
+        <div class="card-body">
+            <form @submit.prevent="save()">
+                {% csrf_token %}
+                
+                <!-- Title Field -->
+                <div class="mb-3">
+                    <label for="title" class="form-label">Title</label>
+                    <input type="text" 
+                           class="form-control form-control-lg" 
+                           id="title" 
+                           name="title"
+                           x-model="title"
+                           @input="markDirty()"
+                           placeholder="Enter document title...">
+                </div>
+                
+                <!-- Content Field -->
+                <div class="mb-3">
+                    <label for="content" class="form-label">Content</label>
+                    <textarea class="form-control" 
+                              id="content" 
+                              name="content"
+                              rows="20"
+                              x-model="content"
+                              @input="markDirty()"
+                              placeholder="Start typing your document content..."></textarea>
+                </div>
+            </form>
+        </div>
+        
+        <!-- Document Metadata -->
+        <div class="card-footer text-muted">
+            <div class="row">
+                <div class="col-md-4">
+                    <small><strong>Version:</strong> {{ document.version }}</small>
+                </div>
+                <div class="col-md-4">
+                    <small><strong>Created by:</strong> {{ document.created_by.username }}</small>
+                </div>
+                <div class="col-md-4">
+                    <small><strong>Modified:</strong> {{ document.updated_at|date:"M d, Y H:i" }}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Delete Target for HTMX -->
+    <div id="delete-target"></div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function documentEditor() {
+        return {
+            title: '{{ document.title|escapejs }}',
+            content: '{{ document.get_plain_text|escapejs }}',
+            originalTitle: '{{ document.title|escapejs }}',
+            originalContent: '{{ document.get_plain_text|escapejs }}',
+            isDirty: false,
+            saving: false,
+            autoSaveInterval: null,
+
+            init() {
+                // Auto-save every 10 seconds if document is dirty
+                this.autoSaveInterval = setInterval(() => {
+                    if (this.isDirty && !this.saving) {
+                        this.save();
+                    }
+                }, 10000);
+                
+                // Save on page unload if dirty
+                window.addEventListener('beforeunload', (e) => {
+                    if (this.isDirty) {
+                        e.preventDefault();
+                        e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+                    }
+                });
+            },
+
+            markDirty() {
+                this.isDirty = (this.title !== this.originalTitle || this.content !== this.originalContent);
+            },
+
+            async save() {
+                if (this.saving) return;
+                
+                this.saving = true;
+                
+                try {
+                    const formData = new FormData();
+                    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+                    formData.append('title', this.title);
+                    formData.append('content', this.content);
+                    
+                    const response = await fetch('{% url "document_autosave" document.pk %}', {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        this.originalTitle = this.title;
+                        this.originalContent = this.content;
+                        this.isDirty = false;
+                        
+                        // Show success message briefly
+                        this.showMessage('Document saved successfully!', 'success');
+                    } else {
+                        this.showMessage('Failed to save document. Please try again.', 'danger');
+                    }
+                } catch (error) {
+                    this.showMessage('Failed to save document. Please check your connection.', 'danger');
+                } finally {
+                    this.saving = false;
+                }
+            },
+
+            showMessage(message, type) {
+                const container = document.querySelector('.container');
+                const alert = document.createElement('div');
+                alert.className = `alert alert-${type} alert-dismissible fade show`;
+                alert.innerHTML = `
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                container.insertBefore(alert, container.firstChild);
+                
+                // Auto-dismiss after 3 seconds
+                setTimeout(() => {
+                    alert.remove();
+                }, 3000);
+            }
+        };
+    }
+    
+    // Handle delete response
+    document.addEventListener('htmx:afterRequest', function(event) {
+        if (event.detail.xhr.status === 200 && event.detail.requestConfig.verb === 'delete') {
+            // Redirect to document list after successful delete
+            window.location.href = '{% url "document_list" %}';
+        }
+    });
+</script>
+{% endblock %}

@@ -82,7 +82,7 @@ class Document(models.Model):
         super().save(*args, **kwargs)
 
     def get_absolute_url(self):
-        return reverse("document-detail", kwargs={"pk": self.pk})
+        return reverse("document_detail", kwargs={"pk": self.pk})
 
 
 class DocumentChange(models.Model):

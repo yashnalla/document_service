@@ -4,7 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Django document service built with Python 3.11, Poetry for dependency management, and Docker for containerization. The project uses PostgreSQL as its primary database with Redis for caching and is designed to support Lexical editor content storage with document versioning.
+This is a sophisticated Django document management service designed for collaborative editing with Lexical editor integration. Built with Python 3.11, Poetry for dependency management, and Docker for containerization. The project implements a dual-interface architecture (REST API + Web UI) with advanced features including real-time change tracking, optimistic locking, version control, and comprehensive audit trails.
+
+**Key Features:**
+- **Collaborative Document Editing**: Support for concurrent editing with conflict detection
+- **Lexical Editor Integration**: Native support for Lexical editor JSON format with bidirectional text conversion
+- **Version Control**: Automatic versioning with complete change history and rollback capabilities
+- **Advanced Change Operations**: Text-based and position-based change operations with preview functionality
+- **Optimistic Locking**: ETag-based conflict prevention for concurrent modifications
+- **Anonymous User Support**: Guest editing capabilities with proper user attribution
+- **Service Layer Architecture**: Centralized business logic through DocumentService pattern
+- **Comprehensive Testing**: Full test coverage with fixtures and integration testing
 
 ## Development Environment
 
@@ -53,32 +63,192 @@ docker-compose exec web poetry run pytest path/to/test_file.py::test_function_na
 ## Architecture
 
 ### Multi-Service Architecture
-The application runs as a multi-container setup:
-- **web**: Django application server (port 8000)
-- **postgres**: PostgreSQL database (port 5432)
-- **redis**: Redis cache (port 6379)
+The application runs as a multi-container setup with service isolation and dependency management:
+- **web**: Django application server (port 8000) - Main application with both API and web interfaces
+- **postgres**: PostgreSQL 15 database (port 5432) - Primary data storage with ACID compliance
+- **redis**: Redis 7 cache (port 6379) - High-performance caching and session storage
 
-All services are orchestrated via docker-compose with the web service depending on both postgres and redis.
+**Service Dependencies:**
+- Web service depends on both postgres and redis services
+- Automatic service discovery via Docker Compose networking
+- Health check endpoints for monitoring service connectivity
+- Volume persistence for postgres data (`postgres_data` volume)
+
+### Service Layer Architecture
+The application implements a comprehensive service layer pattern for business logic centralization:
+
+**DocumentService (`documents/services.py`):**
+- **Centralized Business Logic**: All document operations flow through the service layer
+- **Cross-Interface Consistency**: Ensures identical behavior between API and web interfaces
+- **Transaction Management**: Atomic operations with automatic rollback on failures
+- **User Management**: Handles both authenticated and anonymous user scenarios
+- **Content Processing**: Bidirectional conversion between plain text and Lexical JSON format
+- **Change Tracking**: Comprehensive audit trail with user attribution and version tracking
+
+**Key Service Methods:**
+- `create_document()` - Document creation with content processing and change tracking
+- `update_document()` - Updates with intelligent version management and conflict detection
+- `apply_changes()` - Structured change operations with preview and rollback capabilities
+- `preview_changes()` - Non-destructive change testing and validation
+- `get_change_history()` - Complete audit trail retrieval with pagination
 
 ### Document Model Design
-The core `Document` model (`documents/models.py`) is designed for collaborative document editing:
-- **UUID primary keys** for distributed system compatibility
-- **JSONField content** optimized for Lexical editor state storage
-- **Version tracking** with integer version field
-- **User relationships** via foreign key to Django's User model
-- **Temporal tracking** with created_at/updated_at timestamps
+The core `Document` model (`documents/models.py`) is engineered for distributed collaborative editing:
+
+**Primary Key Strategy:**
+- **UUID primary keys** (`uuid.uuid4()`) for global uniqueness and distributed system compatibility
+- Eliminates conflicts in multi-instance deployments and database replication scenarios
+
+**Content Management:**
+- **JSONField content** with `default=dict` optimized for Lexical editor state storage
+- **Intelligent version tracking** with automatic increment only on actual content/title changes
+- **Smart save() override** that compares existing vs new data to prevent unnecessary version bumps
+- **Lexical content validation** and processing through utility functions
+
+**Optimistic Locking:**
+- **ETag generation** via MD5 hash of `content + version` for conflict detection
+- **HTTP ETag headers** on all API responses for client-side caching and conflict prevention
+- **Version-based conflict resolution** prevents lost updates in concurrent editing scenarios
+
+**User Relationships:**
+- **created_by**: Foreign key to User with CASCADE delete (required)
+- **last_modified_by**: Foreign key to User with CASCADE delete (optional, tracks last editor)
+- **Anonymous user support** via fallback "anonymous" user creation
+
+**Content Processing:**
+- **get_plain_text() method**: Recursive extraction of text from Lexical JSON structure
+- **Handles multiple Lexical formats**: Both `root.children` and alternative `content` structures  
+- **Text node traversal**: Deep parsing of nested Lexical node hierarchies
+- **Bidirectional processing**: Conversion between plain text and structured Lexical content
+
+**Temporal Tracking:**
+- **created_at**: Auto-populated timestamp (auto_now_add=True)
+- **updated_at**: Auto-updated timestamp (auto_now=True)
+- **Default ordering**: Most recently updated documents first (`-updated_at`)
+
+**Model Methods:**
+- `increment_version()`: Manual version increment with save
+- `get_absolute_url()`: Returns web interface URL for the document
+- `__str__()`: Returns document title
+- `__repr__()`: Returns detailed representation with title and version
+
+### DocumentChange Audit Model
+The `DocumentChange` model provides comprehensive change tracking and audit capabilities:
+
+**Change Tracking:**
+- **UUID primary keys** for distributed change identification
+- **Document foreign key** with CASCADE delete and `related_name="changes"`
+- **Version transitions**: `from_version` and `to_version` tracking for complete history
+- **Chronological ordering**: Most recent changes first (`-applied_at`)
+
+**Change Data Storage:**
+- **JSONField change_data**: Stores complete change operations as structured JSON
+- **Flexible format**: Supports various change types (create, update, text-based, position-based)
+- **Operation metadata**: Includes operation type, targets, replacements, and context
+
+**User Attribution:**
+- **applied_by**: Foreign key to User tracking who made the change
+- **Complete user context**: Links changes to authenticated or anonymous users
+- **Change ownership**: Enables per-user change history and analytics
+
+**Audit Trail Features:**
+- **applied_at**: Precise timestamp of when change was applied
+- **Change type identification**: Distinguished between creates, updates, and structured changes
+- **Rollback capability**: Change data format enables potential change reversal
+- **Analytics support**: Enables change frequency, user activity, and collaboration metrics
+
+### Advanced Change Operations System
+The application implements a sophisticated change operations system (`documents/change_operations.py`) for structured document modifications:
+
+**Change Operation Classes:**
+
+**1. ChangeOperation (Base Class):**
+- **Validation framework**: Ensures operation data integrity and format compliance
+- **Operation type restriction**: Currently supports "replace" operations with extensible architecture
+- **Error handling**: Raises `InvalidChangeError` for malformed operations
+
+**2. TextBasedChange:**
+- **Text occurrence targeting**: Find and replace specific occurrences of text strings
+- **Occurrence numbering**: Replace the Nth occurrence (1-indexed) of target text
+- **Validation**: Ensures target text exists and occurrence number is valid
+- **Error handling**: Raises `TextNotFoundError` when target text/occurrence not found
+
+**3. PositionBasedChange:**
+- **Character range targeting**: Replace text within specific start/end positions
+- **Range validation**: Ensures start <= end and positions are within text bounds
+- **Precise editing**: Ideal for structured edits where exact positions are known
+- **Error handling**: Raises `InvalidRangeError` for out-of-bounds ranges
+
+**ChangeProcessor (Orchestration):**
+- **Multi-operation handling**: Processes lists of change operations atomically
+- **Intelligent ordering**: Position-based changes applied in reverse order to maintain positions
+- **Conflict resolution**: Handles overlapping changes and position adjustments
+- **Preview capability**: Test changes without permanent application
+- **Error aggregation**: Collects and reports all operation failures
+
+**Exception Hierarchy (`documents/exceptions.py`):**
+- `DocumentChangeError` (base): All change-related exceptions
+- `VersionConflictError`: Version mismatch in concurrent editing
+- `InvalidChangeError`: Malformed or invalid change operations
+- `TextNotFoundError`: Target text not found for text-based changes
+- `InvalidRangeError`: Invalid position ranges for position-based changes
+
+### Lexical Editor Integration
+The system provides comprehensive support for Lexical editor content through utility functions (`documents/utils.py`):
+
+**Content Validation:**
+- `validate_lexical_content()`: Structural validation of Lexical JSON format
+- **Root structure checking**: Ensures proper `root.children` hierarchy
+- **Type validation**: Verifies correct node types and structure
+
+**Content Processing:**
+- `update_lexical_content_with_text()`: Converts plain text to Lexical structure
+- **Paragraph handling**: Splits text by newlines into paragraph nodes
+- **Text node creation**: Generates proper Lexical text nodes with formatting attributes
+- **Empty content handling**: Creates proper empty paragraph structures
+
+**Content Creation:**
+- `create_basic_lexical_content()`: Generates minimal valid Lexical structure
+- **Default attributes**: Includes proper format, indent, version, and mode attributes
+- **Flexible input**: Handles both empty and populated text content
+
+**Text Extraction:**
+- `extract_text_from_lexical()`: Recursive plain text extraction from Lexical structures
+- **Node traversal**: Deep traversal of nested node hierarchies
+- **Format agnostic**: Handles various Lexical node structures and formats
+- **Text aggregation**: Intelligent joining of text fragments with appropriate spacing
 
 ### Configuration Strategy
-- **Environment-based configuration** using python-dotenv
-- **Settings loaded from `.env` file** (created from `.env.example`)
-- **Multi-database support**: PostgreSQL for primary data, Redis for caching
-- **Container-aware settings**: Database/Redis hosts reference service names
+**Environment-Based Configuration (`document_service/settings.py`):**
+- **python-dotenv integration**: Automatic `.env` file loading for environment variables
+- **Default fallbacks**: Sensible defaults for all configuration options
+- **Security-first**: Secret key and debug mode controlled via environment
+- **Host configuration**: ALLOWED_HOSTS supports comma-separated values
+
+**Multi-Database Architecture:**
+- **PostgreSQL primary**: Full ACID compliance for document data integrity
+- **Redis caching**: High-performance caching and session storage
+- **dj-database-url**: Simplified database configuration via DATABASE_URL
+- **Container-aware networking**: Service names used for inter-container communication
+
+**Authentication & Security:**
+- **Token-based API authentication**: DRF Token authentication for API access
+- **Session authentication**: Web interface session management
+- **CORS configuration**: Configured for frontend integration with credential support
+- **Password validation**: Comprehensive Django password validators
 
 ### Docker and Poetry Integration
-- **Poetry dependencies installed directly** into container (no virtual environment)
-- **Development volume mounting** for live code reloading
-- **Automatic lock file generation** when missing during build
-- **Multi-stage compatible** Dockerfile ready for production builds
+**Container Architecture:**
+- **Python 3.11-slim base**: Minimal container footprint with required system dependencies
+- **Poetry configuration**: `POETRY_NO_INTERACTION=1` and `POETRY_VENV_IN_PROJECT=false`
+- **Development optimization**: Direct dependency installation without virtual environments
+- **Lock file handling**: Automatic `poetry.lock` generation when missing
+
+**Development Workflow:**
+- **Volume mounting**: Live code reloading via `.:app` volume mount
+- **Dependency caching**: Poetry cache optimization for faster rebuilds
+- **Multi-stage ready**: Dockerfile structure supports production multi-stage builds
+- **Service orchestration**: Proper service dependencies and health checks
 
 ## Database Architecture
 
@@ -97,14 +267,69 @@ All database migrations are handled via Django's migration system. The container
 
 ## Health Monitoring
 
-The application includes a health check endpoint at `/health/` that verifies:
-- Database connectivity (PostgreSQL)
-- Cache connectivity (Redis)
-- Returns JSON status with service health information
+The application provides comprehensive health monitoring capabilities:
+
+**Health Check Endpoint (`/health/`):**
+- **Database connectivity**: Tests PostgreSQL connection with SELECT 1 query
+- **Cache connectivity**: Tests Redis connection with set/get operations
+- **Service status aggregation**: Returns overall "healthy"/"unhealthy" status
+- **Error reporting**: Detailed error messages for failed service connections
+- **JSON response format**: Structured response for monitoring systems
+
+**Health Check Implementation (`document_service/views.py`):**
+- **Exception handling**: Graceful handling of service connection failures  
+- **Connection testing**: Uses Django database cursor and cache operations
+- **Status determination**: Marks overall status as unhealthy if any service fails
+- **Monitoring integration**: Compatible with Docker health checks and external monitoring
+
+**Makefile Health Commands:**
+- `make health`: Quick health check via curl with JSON formatting
+- `make ps`: Container status and running processes
+- `make logs`: Service logs for troubleshooting
 
 ## Testing Framework
 
-Uses pytest as the testing framework with coverage reporting available via pytest-cov plugin. Tests run inside the Docker container to match the production environment.
+The application implements a comprehensive testing strategy using pytest with extensive fixtures and coverage reporting:
+
+**Testing Architecture:**
+- **pytest framework**: Modern testing with powerful fixtures and parametrization
+- **pytest-django integration**: Django-specific testing utilities and database handling
+- **pytest-cov**: Code coverage reporting with detailed metrics
+- **Container-based testing**: All tests run inside Docker for environment parity
+
+**Test Organization (`documents/tests/`):**
+- `test_models.py` - Model behavior, relationships, and database constraints
+- `test_serializers.py` - Serialization, validation, and data transformation
+- `test_views.py` - API endpoint behavior and HTTP responses
+- `test_services.py` - Service layer business logic and transaction handling
+- `test_urls.py` - URL routing and pattern matching
+- `test_integration.py` - End-to-end scenarios and cross-system interactions
+- `test_forms.py` - Web form validation and processing
+- `test_autosave.py` - Auto-save functionality and AJAX endpoints
+- `test_web_views.py` - Web interface behavior and template rendering
+
+**Fixture System (`conftest.py`):**
+- **User fixtures**: `user`, `admin_user`, `anonymous_user` for different permission levels
+- **Document fixtures**: `document`, `multiple_documents`, `search_test_documents` for various scenarios
+- **Content fixtures**: `simple_document_content`, `complex_document_content`, `sample_document_data`
+- **API client fixtures**: `api_client`, `authenticated_client`, `token_authenticated_client`
+- **Factory fixtures**: `document_factory`, `user_factory` for bulk test data creation
+- **Token fixtures**: `user_token`, `admin_token` for API authentication testing
+
+**Advanced Testing Features:**
+- **Database transactions**: `@pytest.mark.django_db` for database access control
+- **Factory patterns**: Dynamic test data creation with parameterized attributes
+- **UUID handling**: Proper UUID primary key testing and validation
+- **Version control testing**: Change tracking and version increment validation
+- **Service layer testing**: Business logic isolation and transaction testing
+- **Exception testing**: Comprehensive error handling and edge case coverage
+- **Integration scenarios**: Cross-component testing with realistic data flows
+
+**Coverage Configuration:**
+- **pytest-cov integration**: Coverage reporting with branch analysis
+- **Exclude patterns**: Excludes migrations, virtual environments, and test files
+- **HTML reports**: Detailed coverage visualization for development
+- **CI/CD integration**: Coverage reporting compatible with CI/CD pipelines
 
 ## Code Style
 
@@ -112,56 +337,456 @@ Uses Black for code formatting with default settings. All code should be formatt
 
 ## API Architecture
 
-### REST API Design
-The API follows Django REST Framework conventions:
-- **Base URL**: `/api/` for all API endpoints
-- **Document endpoints**: `/api/documents/` (CRUD operations)
-- **Health endpoint**: `/health/` for system monitoring
-- **Admin interface**: `/admin/` for Django admin
+### Dual-Interface Design
+The application implements a hybrid architecture supporting both REST API and traditional web interfaces:
 
-### Permission Model
-- **Default permission**: `IsAuthenticatedOrReadOnly` (documents/views.py:13)
-- **Anonymous users**: Can read documents, create through fallback "anonymous" user
-- **Search functionality**: Query parameter `?search=term` searches title and content
+**API Interface (`/api/`):**
+- **RESTful design**: Resource-based URLs following Django REST Framework conventions
+- **JSON communication**: Request/response handling with structured JSON data
+- **Token authentication**: Header-based authentication for stateless API access
+- **Hypermedia support**: HATEOAS-style links in API root endpoint
+
+**Web Interface (`/documents/`):**
+- **Traditional Django views**: Server-side rendering with template responses
+- **Session authentication**: Cookie-based authentication with CSRF protection
+- **AJAX enhancement**: Auto-save and dynamic updates without page reloads
+- **Bootstrap 5 UI**: Responsive design with Crispy Forms integration
+
+### REST API Endpoints
+
+**Core Document Operations:**
+- `GET /api/` - API root with endpoint discovery
+- `GET /api/docs/` - API documentation and usage guidelines
+- `GET /api/documents/` - List all documents (paginated, searchable)
+- `POST /api/documents/` - Create new document (supports anonymous users)
+- `GET /api/documents/{id}/` - Retrieve specific document with ETag
+- `PUT /api/documents/{id}/` - Full document update with version tracking
+- `PATCH /api/documents/{id}/` - Partial document update
+- `DELETE /api/documents/{id}/` - Delete document (owner only)
+
+**Advanced Change Operations:**
+- `PATCH /api/documents/{id}/changes/` - Apply structured changes with conflict detection
+- `POST /api/documents/{id}/preview/` - Preview changes without applying them
+- `GET /api/documents/{id}/history/` - Retrieve paginated change history
+
+**System Endpoints:**
+- `GET /health/` - Service health check (database + Redis connectivity)
+- `GET /admin/` - Django admin interface
+
+### ViewSet Architecture (`documents/views.py`)
+
+**DocumentViewSet (API Interface):**
+- **ModelViewSet inheritance**: Full CRUD operations with DRF conventions
+- **Dynamic serializer selection**: Different serializers for list/detail/create operations
+- **Search integration**: Query parameter filtering with Q objects
+- **ETag header management**: Automatic ETag generation and response headers
+- **Custom actions**: Additional endpoints for advanced operations
+
+**Custom ViewSet Methods:**
+- `create()`: Enhanced creation with full document response and ETag headers
+- `retrieve()`: Document retrieval with ETag headers for caching
+- `update()`: Update operations with ETag headers and version tracking
+- `get_queryset()`: Search functionality across title and content fields
+
+**Custom Actions:**
+- `@action(detail=True, methods=["patch"]) apply_changes()`: Structured change application
+- `@action(detail=True, methods=["post"]) preview_changes()`: Non-destructive change preview
+- `@action(detail=True, methods=["get"]) change_history()`: Paginated change history
+
+### Web Interface Views
+
+**Class-Based Views:**
+- `DocumentWebListView`: Paginated document list with user filtering
+- `DocumentWebDetailView`: Document detail with inline editing support
+- `DocumentWebCreateView`: Document creation with form validation
+- `DocumentWebDeleteView`: Document deletion with confirmation
+
+**AJAX Endpoints:**
+- `document_autosave()`: Auto-save functionality for real-time editing
+- **AJAX response handling**: JSON responses for seamless user experience
+- **Error handling**: Graceful error messages for both AJAX and standard requests
 
 ### Serializer Strategy
-Three specialized serializers for different use cases:
-- **DocumentListSerializer**: Lightweight for list views (excludes content)
-- **DocumentSerializer**: Full document details for retrieve/update
-- **DocumentCreateSerializer**: Validation-focused for creation with anonymous user handling
+
+**Specialized Serializers for Different Use Cases:**
+
+**1. DocumentListSerializer:**
+- **Lightweight response**: Excludes content field for performance
+- **User information**: Includes created_by details
+- **Essential metadata**: ID, title, version, timestamps
+- **Read-only fields**: Prevents modification of computed fields
+
+**2. DocumentSerializer (Full Detail):**
+- **Complete document data**: All fields including content
+- **ETag support**: Computed ETag field for optimistic locking
+- **User relationship serialization**: Full user details for created_by and last_modified_by
+- **Computed fields**: Human-readable user names via SerializerMethodField
+- **Content validation**: Ensures JSONField contains valid dictionary data
+- **Service layer integration**: Updates route through DocumentService
+
+**3. DocumentCreateSerializer:**
+- **Creation-focused**: Only title and content fields
+- **Validation logic**: Title length and content format validation
+- **Anonymous user handling**: Supports unauthenticated document creation
+- **Service layer integration**: Routes creation through DocumentService
+
+**4. DocumentChangeSerializer:**
+- **Change operation validation**: Validates structured change operations
+- **Version conflict detection**: Ensures expected version matches current version
+- **Operation type validation**: Supports text-based and position-based changes
+- **Service layer integration**: Routes changes through DocumentService
+
+**5. ChangeOperationSerializer:**
+- **Operation validation**: Validates individual change operations
+- **Flexible change types**: Supports both target-based and range-based changes
+- **Error handling**: Detailed validation errors for malformed operations
+
+**6. DocumentChangeHistorySerializer:**
+- **Audit trail presentation**: Change history with user attribution
+- **User relationship**: Full user details for applied_by field
+- **Change metadata**: Version transitions and timestamps
+- **Human-readable formatting**: User names via SerializerMethodField
+
+### Permission and Authentication Model
+
+**API Authentication:**
+- **Token authentication**: Primary method for API access
+- **Session authentication**: Fallback for web interface AJAX calls
+- **Anonymous access**: Controlled anonymous document creation
+
+**Permission Strategy:**
+- **IsAuthenticated default**: All operations require authentication
+- **Anonymous user fallback**: Documents created by anonymous users when unauthenticated
+- **Owner-based access**: Users can only modify their own documents
+- **Search accessibility**: All authenticated users can search all documents
+
+**ETag-Based Optimistic Locking:**
+- **Conflict prevention**: ETags prevent lost updates in concurrent editing
+- **Client-side caching**: ETags enable efficient browser caching
+- **Version synchronization**: ETags reflect both content and version changes
+- **Header management**: Automatic ETag header inclusion in all responses
+
+### Error Handling and Validation
+
+**Exception Management:**
+- **Version conflicts**: HTTP 409 Conflict for version mismatches
+- **Validation errors**: HTTP 400 Bad Request for invalid operations
+- **Permission errors**: HTTP 403 Forbidden for unauthorized access
+- **Not found errors**: HTTP 404 Not Found for missing resources
+
+**Error Response Format:**
+- **Structured errors**: Consistent JSON error response format
+- **Detailed messages**: Human-readable error descriptions
+- **Context information**: Additional context for conflict resolution (e.g., current version)
+
+## Web Interface Architecture
+
+### Template-Based UI (`templates/`)
+The web interface provides a complete document management system with responsive design:
+
+**Template Structure:**
+- `base.html` - Base template with Bootstrap 5, navigation, and common layout
+- `documents/list.html` - Document list with pagination and user filtering
+- `documents/detail.html` - Document detail view with inline editing
+- `documents/create.html` - Document creation form
+- `documents/partials/document_card.html` - Reusable document card component
+- `registration/login.html` - Authentication form
+
+**Static Assets (`static/`):**
+- `css/main.css` - Custom styling and responsive design enhancements
+- `js/app.js` - JavaScript for auto-save, AJAX interactions, and dynamic updates
+
+### Form Management (`documents/forms.py`)
+
+**DocumentForm:**
+- **Crispy Forms integration**: Bootstrap 5 styled forms with layout control
+- **Plain text content**: Converts between plain text input and Lexical JSON
+- **Auto-save support**: Designed for AJAX auto-save functionality
+- **Validation**: Title requirement and content processing
+
+**DocumentCreateForm:**
+- **Specialized creation**: Extends DocumentForm with creation-specific behavior
+- **Optional content**: Allows creation of documents with empty content
+- **User experience**: Optimized placeholder text and field handling
+
+### AJAX Integration
+
+**Auto-Save Functionality:**
+- **Real-time saving**: Periodic auto-save of document changes
+- **Error handling**: Graceful handling of save failures with user feedback
+- **Version tracking**: Auto-save updates document version appropriately
+- **User feedback**: Success/error messages via JSON responses
+
+**Dynamic Updates:**
+- **Document deletion**: AJAX-based deletion with confirmation
+- **Form submission**: Enhanced form handling with AJAX fallbacks
+- **Error display**: Dynamic error message display without page reloads
+
+### Authentication Flow
+
+**User Authentication:**
+- **Login/logout views**: Django built-in authentication views
+- **Session management**: Cookie-based session authentication
+- **Access control**: Login required for document operations
+- **Redirect handling**: Smart redirects based on authentication status
+
+**Root URL Behavior (`document_service/views.py`):**
+- **Authenticated users**: Redirected to document list
+- **Unauthenticated users**: Redirected to login page
+- **User experience**: Seamless navigation based on authentication state
+
+## URL Routing Architecture
+
+### URL Pattern Organization
+
+**Main URL Configuration (`document_service/urls.py`):**
+- **Root redirect**: Smart routing based on authentication status
+- **Admin interface**: `/admin/` for Django admin
+- **Health monitoring**: `/health/` for service status
+- **Authentication**: `/accounts/` for login/logout functionality
+- **API routes**: `/api/` prefix for all REST API endpoints
+- **Web interface**: `/documents/` for web-based document management
+
+**API URL Configuration (`api/urls.py`):**
+- **DRF Router integration**: Automatic URL generation for ViewSets
+- **API root**: `/api/` with endpoint discovery
+- **API documentation**: `/api/docs/` with usage guidelines
+- **RESTful conventions**: Standard CRUD operations with proper HTTP methods
+
+**Document URL Configuration (`documents/urls.py`):**
+- **Web interface only**: Separated from API routes for clarity
+- **UUID path converters**: Proper UUID handling in URL patterns
+- **CRUD operations**: Complete web interface for document management
+- **Auto-save endpoint**: Dedicated AJAX endpoint for auto-save functionality
+
+**URL Patterns:**
+- `documents/` - Document list view (paginated)
+- `documents/create/` - Document creation form
+- `documents/<uuid:pk>/` - Document detail view with editing
+- `documents/<uuid:pk>/delete/` - Document deletion confirmation
+- `documents/<uuid:pk>/autosave/` - AJAX auto-save endpoint
 
 ## Development Workflow
 
 ### Environment Setup
-1. Copy `.env.example` to `.env` and configure
-2. Run `make dev-setup` for complete initialization
+**Initial Setup:**
+1. Copy `.env.example` to `.env` and configure environment variables
+2. Run `make dev-setup` for complete initialization (build, start, migrate)
 3. Use `make dev-setup-fresh` to include default admin user (admin/admin123)
+4. Access application at `http://localhost:8000`
 
-### Testing Strategy
-- **Test files**: `test_simple.py`, `test_api.py` for API testing
-- **Framework**: pytest with coverage support
-- **Container testing**: All tests run inside Docker for environment consistency
-- **Manual testing**: Use provided test scripts or Django shell
+**Environment Variables:**
+- `SECRET_KEY` - Django secret key for security
+- `DEBUG` - Debug mode toggle (False for production)
+- `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` - Database configuration
+- `REDIS_URL` - Redis connection string
+- `ALLOWED_HOSTS` - Comma-separated list of allowed hosts
 
-### Database Operations
-**PostgreSQL-specific commands:**
-- `make db-shell` - Direct PostgreSQL access
-- `make db-reset` - Dangerous: drops all data and recreates schema  
-- `make backup` - Creates timestamped SQL dumps
-- `make restore BACKUP_FILE=filename` - Restores from backup
+### Development Commands
 
-**Redis operations:**
-- `make redis-cli` - Access Redis command line
-- `make redis-monitor` - Real-time command monitoring
-- `make redis-flush` - Clear all cache data
+**Essential Development Workflow:**
+- `make dev-setup` - Complete development environment setup
+- `make up` - Start all services in detached mode
+- `make down` - Stop and remove all containers
+- `make restart` - Restart all services
+- `make logs` - View logs from all services
 
-## Important Notes
+**Code Quality and Testing:**
+- `make test` - Run complete test suite with pytest
+- `make test-coverage` - Run tests with coverage reporting
+- `make lint` - Check code formatting with Black
+- `make format` - Format all code with Black
+- `make check` - Run Django system checks
 
-- **All database commands are now PostgreSQL-compatible** - backup, restore, reset all work with PostgreSQL
-- **Redis commands available** - monitor, info, flush commands for cache management
-- **Health monitoring** - dedicated `/health/` endpoint and `make health` command
-- **The project uses UUID primary keys** for the Document model to support distributed scenarios
-- **JSONField content storage** is specifically designed for Lexical editor integration
-- **Environment verification** - `make env-check` validates configuration settings
-- **Anonymous user handling**: Documents created without authentication use fallback "anonymous" user
-- **Version tracking**: Document model automatically increments version on content/title changes
+**Database Management:**
+- `make migrate` - Run pending database migrations
+- `make makemigrations` - Create new migrations for model changes
+- `make db-shell` - Direct PostgreSQL shell access
+- `make db-reset` - Reset database (WARNING: destroys all data)
+- `make backup` - Create timestamped database backup
+- `make restore BACKUP_FILE=filename` - Restore from backup file
+
+**Redis Operations:**
+- `make redis-cli` - Access Redis command line interface
+- `make redis-monitor` - Monitor Redis commands in real-time
+- `make redis-flush` - Clear all Redis cache data
+- `make redis-info` - Display Redis server information
+
+### Production Considerations
+
+**Security Configuration:**
+- **SECRET_KEY management**: Use secure, randomly generated keys
+- **DEBUG mode**: Always False in production
+- **ALLOWED_HOSTS**: Restrictive host configuration
+- **Database credentials**: Secure credential management
+
+**Performance Optimization:**
+- **Redis caching**: Leverage Redis for session and application caching
+- **Static file serving**: Configure proper static file serving for production
+- **Database optimization**: Connection pooling and query optimization
+
+**Monitoring and Health Checks:**
+- **Health endpoint**: `/health/` for load balancer and monitoring integration
+- **Logging configuration**: Structured logging for production monitoring
+- **Error reporting**: Integration with error reporting services
+
+## Management Commands
+
+The application includes custom Django management commands for administrative tasks:
+
+### Document Management Commands (`documents/management/commands/`)
+
+**create_test_users.py:**
+- **Purpose**: Create test users for development and testing
+- **Usage**: `python manage.py create_test_users`
+- **Features**: Creates multiple users with different permission levels
+- **Development utility**: Streamlines test environment setup
+
+**create_api_token.py:**
+- **Purpose**: Generate API tokens for user authentication
+- **Usage**: `python manage.py create_api_token --user <username>`
+- **Features**: Creates or retrieves existing tokens for API access
+- **Token management**: Simplifies API authentication setup
+
+## Dependency Management
+
+### Poetry Configuration (`pyproject.toml`)
+The project uses Poetry for sophisticated dependency management with development and production separation:
+
+**Core Dependencies:**
+- **Django 4.2.7**: Latest LTS version for stability and security
+- **djangorestframework 3.14.0**: REST API framework with comprehensive features
+- **psycopg2-binary 2.9.7**: PostgreSQL adapter with compiled binaries
+- **redis 5.0.1**: Redis client for caching and session storage
+- **python-dotenv 1.0.0**: Environment variable management
+- **dj-database-url 2.1.0**: Database URL parsing for configuration
+- **django-cors-headers 4.3.1**: CORS handling for frontend integration
+- **django-crispy-forms 2.0**: Enhanced form rendering
+- **crispy-bootstrap5 0.7**: Bootstrap 5 integration for forms
+
+**Development Dependencies:**
+- **black 23.0.0**: Code formatting and style enforcement
+- **pytest 7.4.0**: Modern testing framework with powerful features
+- **pytest-cov 4.1.0**: Coverage reporting integration
+- **pytest-django 4.5.0**: Django-specific testing utilities
+
+**Testing Configuration:**
+- **Django settings module**: Automatic test settings configuration
+- **Test discovery**: Comprehensive test file pattern matching
+- **Output formatting**: Verbose output with short traceback format
+
+## Architecture Patterns and Best Practices
+
+### Service Layer Pattern
+The application implements a comprehensive service layer pattern for business logic encapsulation:
+
+**Benefits:**
+- **Cross-interface consistency**: Same business logic for API and web interfaces
+- **Transaction management**: Atomic operations with proper rollback handling
+- **Testing isolation**: Business logic testing independent of views/serializers
+- **Code reuse**: Eliminates duplication between different interface layers
+
+**Implementation Strategy:**
+- **Static methods**: Service methods are stateless and side-effect free
+- **Dependency injection**: Services receive dependencies as parameters
+- **Exception propagation**: Custom exceptions bubble up through all layers
+- **Validation centralization**: Business rules enforced in service layer
+
+### Repository Pattern (Implicit)
+Django's ORM provides implicit repository pattern implementation:
+
+**Model Managers**: Custom query logic encapsulated in model managers
+**QuerySet Methods**: Reusable query patterns as QuerySet methods
+**Service Integration**: Services use models as repositories for data access
+
+### Exception Handling Strategy
+Comprehensive exception hierarchy provides granular error handling:
+
+**Custom Exception Benefits:**
+- **Error categorization**: Different exception types for different error conditions
+- **Client communication**: Meaningful error messages for API consumers
+- **Debugging support**: Detailed error context for development
+- **Recovery strategies**: Different handling strategies for different error types
+
+### Testing Philosophy
+The testing strategy emphasizes comprehensive coverage with realistic scenarios:
+
+**Testing Principles:**
+- **Behavior-driven testing**: Tests focus on behavior rather than implementation
+- **Integration emphasis**: End-to-end testing to verify complete workflows
+- **Fixture-based setup**: Reusable test data setup for consistency
+- **Container testing**: Tests run in production-like environment
+
+## Important Notes and Key Features
+
+### Core Architecture Decisions
+
+**UUID Primary Keys:**
+- **Global uniqueness**: Supports distributed deployments and database replication
+- **Security benefits**: Prevents enumeration attacks and ID guessing
+- **URL safety**: Clean, unguessable URLs for document access
+- **Merge compatibility**: Enables database merging without ID conflicts
+
+**JSONField Content Storage:**
+- **Lexical editor optimization**: Native support for structured editor content
+- **Schema flexibility**: Accommodates evolving content structures
+- **Query capabilities**: PostgreSQL JSON querying for search functionality
+- **Version compatibility**: Backward compatibility with content format changes
+
+**Optimistic Locking with ETags:**
+- **Conflict prevention**: Prevents lost updates in concurrent editing scenarios
+- **Client-side caching**: Enables efficient browser and proxy caching
+- **Bandwidth optimization**: Conditional requests reduce unnecessary data transfer
+- **User experience**: Immediate feedback on version conflicts
+
+### Advanced Features
+
+**Anonymous User Support:**
+- **Guest editing**: Documents can be created without authentication
+- **User attribution**: Anonymous documents properly attributed to "anonymous" user
+- **Seamless transition**: Anonymous users can be promoted to authenticated users
+- **Audit trail**: Complete change tracking even for anonymous operations
+
+**Intelligent Version Tracking:**
+- **Smart incrementing**: Version only increments on actual content/title changes
+- **Performance optimization**: Avoids unnecessary version bumps on no-op saves
+- **Change detection**: Compares current vs. new data to determine changes
+- **Audit support**: Enables precise change tracking and rollback capabilities
+
+**Advanced Change Operations:**
+- **Multiple operation types**: Text-based and position-based change operations
+- **Conflict resolution**: Intelligent handling of overlapping changes
+- **Preview functionality**: Non-destructive change testing before application
+- **Rollback capability**: Change format enables potential operation reversal
+
+**Comprehensive Audit Trail:**
+- **Complete change history**: Every document modification is tracked
+- **User attribution**: All changes linked to specific users (including anonymous)
+- **Version transitions**: Tracks from/to version for each change
+- **Operation metadata**: Detailed information about each change operation
+
+### Production Readiness Features
+
+**Health Monitoring:**
+- **Service dependency checking**: Verifies database and Redis connectivity
+- **Load balancer integration**: Standard health check endpoint for infrastructure[
+- **Monitoring system compatibility**: JSON response format for automated monitoring
+- **Graceful degradation**: Detailed error reporting for failed services
+
+**Security Considerations:**
+- **Environment-based configuration**: Sensitive settings controlled via environment variables
+- **CORS configuration**: Proper cross-origin resource sharing setup
+- **Authentication flexibility**: Multiple authentication methods (token, session)
+- **Permission enforcement**: Consistent permission checking across all interfaces
+
+**Performance Optimization:**
+- **Redis caching**: High-performance caching for frequently accessed data
+- **Query optimization**: Efficient database queries with proper indexing
+- **Pagination support**: Large dataset handling with efficient pagination
+- **Static file optimization**: Proper static file serving configuration
+
+**Development Experience:**
+- **Comprehensive tooling**: Complete development toolkit with make commands
+- **Docker integration**: Consistent development environment across machines
+- **Testing automation**: Automated testing with coverage reporting
+- **Code quality enforcement**: Automated code formatting and style checking

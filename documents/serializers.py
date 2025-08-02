@@ -1,9 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from .models import Document, DocumentChange
-from .exceptions import VersionConflictError, InvalidChangeError
-from .change_operations import ChangeProcessor
-from .utils import update_lexical_content_with_text
+from .services import DocumentService
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -74,10 +72,17 @@ class DocumentSerializer(serializers.ModelSerializer):
         return value
 
     def update(self, instance, validated_data):
-        # Set last_modified_by to current user
-        if "request" in self.context:
-            validated_data["last_modified_by"] = self.context["request"].user
-        return super().update(instance, validated_data)
+        # Use DocumentService for consistent updates
+        user = self.context.get("request").user if "request" in self.context else None
+        title = validated_data.get("title")
+        content = validated_data.get("content")
+        
+        return DocumentService.update_document(
+            document=instance,
+            title=title,
+            content=content,
+            user=user
+        )
 
 
 class DocumentCreateSerializer(serializers.ModelSerializer):
@@ -99,22 +104,14 @@ class DocumentCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         user = self.context["request"].user
-        if user.is_authenticated:
-            validated_data["created_by"] = user
-        else:
-            # For anonymous users, create or get a default user
-            from django.contrib.auth.models import User
-
-            default_user, created = User.objects.get_or_create(
-                username="anonymous",
-                defaults={
-                    "first_name": "Anonymous",
-                    "last_name": "User",
-                    "email": "anonymous@example.com",
-                },
-            )
-            validated_data["created_by"] = default_user
-        return super().create(validated_data)
+        title = validated_data["title"]
+        content = validated_data.get("content")
+        
+        return DocumentService.create_document(
+            title=title,
+            content=content,
+            user=user if user.is_authenticated else None
+        )
 
 
 class ChangeOperationSerializer(serializers.Serializer):
@@ -198,37 +195,12 @@ class DocumentChangeSerializer(serializers.Serializer):
         changes = validated_data["changes"]
         user = self.context["request"].user
 
-        # Check version conflict
-        if instance.version != expected_version:
-            raise VersionConflictError(
-                f"Version conflict: expected {expected_version}, got {instance.version}"
-            )
-
-        # Get current plain text
-        original_text = instance.get_plain_text()
-
-        # Apply changes
-        try:
-            processor = ChangeProcessor(changes)
-            new_text = processor.apply_changes(original_text)
-        except Exception as e:
-            raise InvalidChangeError(f"Failed to apply changes: {str(e)}")
-
-        # Update document content
-        instance.content = update_lexical_content_with_text(instance.content, new_text)
-        instance.last_modified_by = user
-        instance.save()
-
-        # Record the change
-        DocumentChange.objects.create(
+        return DocumentService.apply_changes(
             document=instance,
-            change_data=changes,
-            applied_by=user,
-            from_version=expected_version,
-            to_version=instance.version,
+            changes=changes,
+            user=user,
+            expected_version=expected_version
         )
-
-        return instance
 
 
 class DocumentChangeHistorySerializer(serializers.ModelSerializer):

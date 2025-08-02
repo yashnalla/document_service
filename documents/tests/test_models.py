@@ -177,7 +177,8 @@ def test_document_get_absolute_url(user, simple_document_content):
         title="Test Document", content=simple_document_content, created_by=user
     )
 
-    expected_url = reverse("document-detail", kwargs={"pk": document.pk})
+    # get_absolute_url should return the web interface URL, not API URL
+    expected_url = reverse("document_detail", kwargs={"pk": document.pk})
     assert document.get_absolute_url() == expected_url
 
 @pytest.mark.django_db

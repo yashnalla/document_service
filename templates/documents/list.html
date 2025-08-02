@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}My Documents - Document Service{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>My Documents</h1>
+    <a href="{% url 'document_create' %}" class="btn btn-primary">
+        ➕ Create New Document
+    </a>
+</div>
+
+{% if documents %}
+    <div class="row" id="documents-container">
+        {% for document in documents %}
+            {% include 'documents/partials/document_card.html' with document=document %}
+        {% endfor %}
+    </div>
+    
+    <!-- Pagination -->
+    {% if is_paginated %}
+        <nav aria-label="Page navigation" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1">First</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                    </li>
+                {% endif %}
+                
+                <li class="page-item active">
+                    <span class="page-link">
+                        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                    </span>
+                </li>
+                
+                {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Last</a>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+    {% endif %}
+{% else %}
+    <!-- Empty State -->
+    <div class="text-center py-5">
+        <div class="mb-4">
+            <i class="display-1 text-muted">📄</i>
+        </div>
+        <h3 class="text-muted">No documents yet</h3>
+        <p class="text-muted mb-4">Create your first document to get started!</p>
+        <a href="{% url 'document_create' %}" class="btn btn-primary btn-lg">
+            ➕ Create Your First Document
+        </a>
+    </div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Handle HTMX events for document actions
+    document.addEventListener('htmx:afterRequest', function(event) {
+        if (event.detail.xhr.status === 200 && event.detail.requestConfig.verb === 'delete') {
+            // Document deleted successfully, remove the card
+            const target = event.target.closest('.col-md-6');
+            if (target) {
+                target.remove();
+            }
+            
+            // Show success message
+            const container = document.querySelector('.container');
+            const alert = document.createElement('div');
+            alert.className = 'alert alert-success alert-dismissible fade show mt-3';
+            alert.innerHTML = `
+                Document deleted successfully!
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            container.insertBefore(alert, container.firstChild);
+        }
+    });
+</script>
+{% endblock %}

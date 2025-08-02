@@ -2,6 +2,8 @@ import redis
 from django.http import JsonResponse
 from django.db import connection
 from django.core.cache import cache
+from django.shortcuts import redirect
+from django.urls import reverse
 import os
 
 
@@ -28,3 +30,15 @@ def health_check(request):
         status["status"] = "unhealthy"
 
     return JsonResponse(status)
+
+
+def root_redirect(request):
+    """
+    Root URL handler that redirects users based on authentication status:
+    - Authenticated users -> documents list
+    - Unauthenticated users -> login page
+    """
+    if request.user.is_authenticated:
+        return redirect('document_list')
+    else:
+        return redirect('login')
