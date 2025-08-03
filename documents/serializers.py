@@ -1,7 +1,10 @@
+import logging
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from .models import Document, DocumentChange
 from .services import DocumentService
+
+logger = logging.getLogger(__name__)
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -115,66 +118,63 @@ class DocumentCreateSerializer(serializers.ModelSerializer):
 
 
 class ChangeOperationSerializer(serializers.Serializer):
-    """Serializer for individual change operations."""
+    """Serializer for sequential Operational Transform operations."""
 
     operation = serializers.CharField()
-    target = serializers.DictField(required=False)
-    range = serializers.DictField(required=False)
-    replacement = serializers.CharField(required=False, allow_blank=True)
-    text = serializers.CharField(required=False, allow_blank=True)
+    # Sequential OT operation fields (no absolute positions)
+    content = serializers.CharField(required=False, allow_blank=True)
+    length = serializers.IntegerField(required=False)
 
     def validate(self, data):
         operation = data.get("operation")
-        if operation != "replace":
-            raise serializers.ValidationError("Only 'replace' operation is supported")
-
-        # Validate text-based change
-        if "target" in data:
-            target = data["target"]
-            if not isinstance(target, dict) or "text" not in target:
-                raise serializers.ValidationError("Target must have 'text' field")
-
-            occurrence = target.get("occurrence", 1)
-            if not isinstance(occurrence, int) or occurrence < 1:
-                raise serializers.ValidationError(
-                    "Occurrence must be a positive integer"
-                )
-
-            if "replacement" not in data:
-                raise serializers.ValidationError(
-                    "Text-based change requires 'replacement' field"
-                )
-
-        # Validate position-based change
-        elif "range" in data:
-            range_data = data["range"]
-            if not isinstance(range_data, dict):
-                raise serializers.ValidationError("Range must be a dictionary")
-
-            start = range_data.get("start")
-            end = range_data.get("end")
-
-            if not isinstance(start, int) or not isinstance(end, int):
-                raise serializers.ValidationError(
-                    "Range start and end must be integers"
-                )
-
-            if start < 0 or end < 0:
-                raise serializers.ValidationError("Range values must be non-negative")
-
-            if start > end:
-                raise serializers.ValidationError("Range start must be <= end")
-
-            if "text" not in data:
-                raise serializers.ValidationError(
-                    "Position-based change requires 'text' field"
-                )
-
+        logger.info(f"Validating operation: {operation} with data: {data}")
+        
+        # Handle sequential OT operations
+        if operation in ["retain", "insert", "delete"]:
+            result = self._validate_sequential_ot_operation(data)
+            logger.info(f"Operation validation passed for {operation}")
+            return result
         else:
+            logger.error(f"Unsupported operation: {operation}")
             raise serializers.ValidationError(
-                "Change must have either 'target' or 'range'"
+                f"Unsupported operation: {operation}. "
+                f"Supported operations: 'retain', 'insert', 'delete'"
             )
-
+    
+    def _validate_sequential_ot_operation(self, data):
+        """Validate sequential OT operations (retain, insert, delete)."""
+        operation = data.get("operation")
+        
+        if operation == "insert":
+            # Insert operation needs content
+            if "content" not in data:
+                raise serializers.ValidationError("insert operation requires 'content' field")
+            
+            content = data["content"]
+            if not isinstance(content, str):
+                raise serializers.ValidationError("Content must be a string")
+            
+            if len(content) == 0:
+                raise serializers.ValidationError("Insert content cannot be empty")
+        
+        elif operation == "delete":
+            # Delete operation needs length
+            if "length" not in data:
+                raise serializers.ValidationError("delete operation requires 'length' field")
+            
+            length = data["length"]
+            if not isinstance(length, int) or length <= 0:
+                raise serializers.ValidationError("Length must be a positive integer")
+        
+        elif operation == "retain":
+            # Retain operation needs length
+            if "length" not in data:
+                raise serializers.ValidationError("retain operation requires 'length' field")
+            
+            length = data["length"]
+            if not isinstance(length, int) or length <= 0:
+                raise serializers.ValidationError("Length must be a positive integer")
+        
         return data
 
 
@@ -185,8 +185,13 @@ class DocumentChangeSerializer(serializers.Serializer):
     changes = ChangeOperationSerializer(many=True)
 
     def validate(self, data):
+        logger.info(f"DocumentChangeSerializer validating data: {data}")
+        
         if not data.get("changes"):
+            logger.error("No changes provided in DocumentChangeSerializer")
             raise serializers.ValidationError("At least one change is required")
+        
+        logger.info(f"DocumentChangeSerializer validation passed with {len(data.get('changes', []))} changes")
         return data
 
     def update(self, instance, validated_data):
@@ -194,6 +199,9 @@ class DocumentChangeSerializer(serializers.Serializer):
         expected_version = validated_data["version"]
         changes = validated_data["changes"]
         user = self.context["request"].user
+
+        logger.info(f"DocumentChangeSerializer applying {len(changes)} changes to document {instance.id}")
+        logger.info(f"Expected version: {expected_version}, current version: {instance.version}")
 
         return DocumentService.apply_changes(
             document=instance,

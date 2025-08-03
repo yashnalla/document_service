@@ -145,8 +145,8 @@ def test_url_patterns_include():
     """Test that URL patterns are properly included."""
     from documents.urls import urlpatterns
 
-    # Should have 5 patterns: web routes only (API moved to api/urls.py)
-    assert len(urlpatterns) == 5
+    # Should have 3 patterns: web routes only (API moved to api/urls.py)
+    assert len(urlpatterns) == 3
 
     # Check that web routes are present
     pattern_strings = [str(pattern.pattern) for pattern in urlpatterns]

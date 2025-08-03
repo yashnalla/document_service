@@ -1,18 +1,18 @@
+import logging
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
-from django.views.generic import ListView, DetailView, CreateView, DeleteView
+from django.views.generic import ListView, DetailView, CreateView
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect
 from django.contrib import messages
-from django.urls import reverse_lazy
-from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+
+logger = logging.getLogger(__name__)
 from .models import Document
 from .forms import DocumentForm, DocumentCreateForm
 from .serializers import (
@@ -23,7 +23,8 @@ from .serializers import (
     DocumentChangeHistorySerializer,
 )
 from .exceptions import VersionConflictError, InvalidChangeError
-from .services import DocumentService
+from .api_client import DocumentAPIClient, APIClientError, APIConflictError, APIValidationError
+from .content_diff import ContentDiffGenerator
 
 
 class DocumentViewSet(viewsets.ModelViewSet):
@@ -91,13 +92,23 @@ class DocumentViewSet(viewsets.ModelViewSet):
     def apply_changes(self, request, pk=None):
         """Apply changes to a document with version control."""
         document = self.get_object()
+        
+        logger.info(f"Apply changes request for document {pk}")
+        logger.info(f"Request data: {request.data}")
+        logger.info(f"Document current version: {document.version}")
+        logger.info(f"Document content length: {len(document.get_plain_text())}")
+        
         serializer = DocumentChangeSerializer(
             document, data=request.data, context={"request": request}
         )
 
         try:
+            logger.info("Validating serializer...")
             serializer.is_valid(raise_exception=True)
+            logger.info("Serializer validation passed, applying changes...")
+            
             updated_document = serializer.save()
+            logger.info(f"Changes applied successfully, new version: {updated_document.version}")
 
             # Return updated document data
             response_serializer = DocumentSerializer(
@@ -108,12 +119,19 @@ class DocumentViewSet(viewsets.ModelViewSet):
             return response
 
         except VersionConflictError as e:
+            logger.warning(f"Version conflict: {str(e)}")
             return Response(
                 {"error": str(e), "current_version": document.version},
                 status=status.HTTP_409_CONFLICT,
             )
         except InvalidChangeError as e:
+            logger.error(f"Invalid change error: {str(e)}")
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Unexpected error in apply_changes: {str(e)}", exc_info=True)
+            if hasattr(serializer, 'errors') and serializer.errors:
+                logger.error(f"Serializer errors: {serializer.errors}")
+            return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=["post"], url_path="preview")
     def preview_changes(self, request, pk=None):
@@ -122,12 +140,20 @@ class DocumentViewSet(viewsets.ModelViewSet):
 
         try:
             changes = request.data.get("changes", [])
+            if not changes:
+                return Response(
+                    {"error": "No changes provided"}, status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Use DocumentService for preview (now uses OT operations directly)
+            from .services import DocumentService
             preview_result = DocumentService.preview_changes(document, changes)
+            
             return Response(preview_result)
 
-        except (ValueError, InvalidChangeError) as e:
+        except Exception as e:
             return Response(
-                {"error": str(e)},
+                {"error": f"Preview failed: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -145,6 +171,8 @@ class DocumentViewSet(viewsets.ModelViewSet):
 
         serializer = DocumentChangeHistorySerializer(changes, many=True)
         return Response(serializer.data)
+
+    # Delete functionality is available through standard ModelViewSet
 
 
 # Template-based views for web interface
@@ -167,35 +195,99 @@ class DocumentWebDetailView(LoginRequiredMixin, DetailView):
         return Document.objects.filter(created_by=self.request.user)
 
     def post(self, request, *args, **kwargs):
-        """Handle document updates via AJAX"""
+        """Handle document updates via API with OT operations"""
         document = self.get_object()
+        
+        logger.info(f"Web view POST request for document {document.id}")
+        logger.info(f"User: {request.user}")
+        logger.info(f"POST data keys: {list(request.POST.keys())}")
+        
         form = DocumentForm(request.POST, instance=document)
         
         if form.is_valid():
             try:
-                title = form.cleaned_data.get('title')
                 content_text = form.cleaned_data.get('content', '')
                 
-                # Use DocumentService for consistent updates
-                updated_document = DocumentService.update_document(
-                    document=document,
-                    title=title,
-                    content_text=content_text,
-                    user=request.user
+                # Refresh document from database to get latest content
+                document.refresh_from_db()
+                old_content_text = document.get_plain_text()
+                
+                logger.info(f"Document Lexical content: {document.content}")
+                logger.info(f"Old content text: '{old_content_text}'")
+                logger.info(f"Old content length: {len(old_content_text)}")
+                logger.info(f"New content length: {len(content_text)}")
+                logger.info(f"Content changed: {old_content_text != content_text}")
+                
+                # Create API client
+                api_client = DocumentAPIClient(request.user)
+                
+                # Generate OT operations from form changes
+                logger.info("Generating OT operations...")
+                api_payload = ContentDiffGenerator.create_api_payload(
+                    document_id=str(document.id),
+                    old_content=old_content_text,
+                    new_content=content_text,
+                    document_version=document.version
                 )
                 
-                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                    return JsonResponse({'success': True, 'message': 'Document saved successfully!'})
+                logger.info(f"Generated API payload: {api_payload}")
+                
+                # Apply changes via API
+                if api_payload['changes']:  # Only send request if there are changes
+                    logger.info("Applying changes via API...")
+                    updated_document_data = api_client.apply_changes(
+                        document_id=str(document.id),
+                        version=api_payload['version'],
+                        changes=api_payload['changes']
+                    )
+                    logger.info("Changes applied successfully via API")
+                    
+                    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                        return JsonResponse({
+                            'success': True, 
+                            'message': 'Document saved successfully!',
+                            'version': updated_document_data.get('version')
+                        })
+                    else:
+                        messages.success(request, 'Document saved successfully!')
+                        return redirect('document_detail', pk=document.pk)
                 else:
-                    messages.success(request, 'Document saved successfully!')
-                    return redirect('document_detail', pk=updated_document.pk)
-            except Exception as e:
+                    # No changes made
+                    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                        return JsonResponse({'success': True, 'message': 'No changes to save'})
+                    else:
+                        return redirect('document_detail', pk=document.pk)
+                        
+            except APIConflictError as e:
+                logger.warning(f"API conflict error in web view: {str(e)}")
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': False, 
+                        'error': 'Document was modified by another user. Please refresh and try again.',
+                        'error_type': 'version_conflict',
+                        'current_version': e.current_version
+                    }, status=409)
+                else:
+                    messages.error(request, 'Document was modified by another user. Please refresh and try again.')
+                    return redirect('document_detail', pk=document.pk)
+                    
+            except (APIValidationError, APIClientError) as e:
+                logger.error(f"API client error in web view: {str(e)}")
                 if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                     return JsonResponse({'success': False, 'error': str(e)}, status=400)
                 else:
                     messages.error(request, f'Error updating document: {str(e)}')
                     return self.render_to_response(self.get_context_data(form=form))
+                    
+            except Exception as e:
+                logger.error(f"Unexpected error in web view: {str(e)}", exc_info=True)
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({'success': False, 'error': 'An unexpected error occurred'}, status=500)
+                else:
+                    messages.error(request, 'An unexpected error occurred')
+                    return self.render_to_response(self.get_context_data(form=form))
         else:
+            logger.error(f"Form validation failed in web view: {form.errors}")
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return JsonResponse({'success': False, 'errors': form.errors}, status=400)
             else:
@@ -212,65 +304,29 @@ class DocumentWebCreateView(LoginRequiredMixin, CreateView):
             title = form.cleaned_data['title']
             content_text = form.cleaned_data.get('content', '')
             
-            # Use DocumentService for consistent creation
-            document = DocumentService.create_document(
+            # Convert content text to Lexical format for API
+            from .utils import create_basic_lexical_content
+            lexical_content = create_basic_lexical_content(content_text)
+            
+            # Create API client
+            api_client = DocumentAPIClient(self.request.user)
+            
+            # Create document via API
+            document_data = api_client.create_document(
                 title=title,
-                content_text=content_text,
-                user=self.request.user
+                content=lexical_content
             )
             
-            messages.success(self.request, f'Document "{document.title}" created successfully!')
-            return redirect('document_detail', pk=document.pk)
-        except Exception as e:
+            messages.success(self.request, f'Document "{document_data["title"]}" created successfully!')
+            return redirect('document_detail', pk=document_data['id'])
+            
+        except (APIValidationError, APIClientError) as e:
             messages.error(self.request, f'Error creating document: {str(e)}')
+            return self.form_invalid(form)
+        except Exception as e:
+            messages.error(self.request, 'An unexpected error occurred while creating the document')
             return self.form_invalid(form)
 
 
-class DocumentWebDeleteView(LoginRequiredMixin, DeleteView):
-    model = Document
-    success_url = reverse_lazy('document_list')
-    
-    def get_queryset(self):
-        return Document.objects.filter(created_by=self.request.user)
-    
-    def delete(self, request, *args, **kwargs):
-        document = self.get_object()
-        document_title = document.title
-        response = super().delete(request, *args, **kwargs)
-        
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return JsonResponse({'success': True, 'message': f'Document "{document_title}" deleted successfully!'})
-        else:
-            messages.success(request, f'Document "{document_title}" deleted successfully!')
-            return response
 
 
-@login_required
-@require_POST
-def document_autosave(request, pk):
-    """Handle auto-save via AJAX"""
-    document = get_object_or_404(Document, pk=pk, created_by=request.user)
-    
-    try:
-        # Get the plain text content from POST data
-        title = request.POST.get('title', document.title)
-        content_text = request.POST.get('content', '')
-        
-        # Use DocumentService for consistent updates
-        updated_document = DocumentService.update_document(
-            document=document,
-            title=title,
-            content_text=content_text,
-            user=request.user
-        )
-        
-        return JsonResponse({
-            'success': True, 
-            'message': 'Document saved successfully!',
-            'version': updated_document.version
-        })
-    except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        }, status=400)

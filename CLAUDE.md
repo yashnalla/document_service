@@ -6,16 +6,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a sophisticated Django document management service designed for collaborative editing with Lexical editor integration. Built with Python 3.11, Poetry for dependency management, and Docker for containerization. The project implements a dual-interface architecture (REST API + Web UI) with advanced features including real-time change tracking, optimistic locking, version control, and comprehensive audit trails.
 
-**Key Features:**
-- **Collaborative Document Editing**: Support for concurrent editing with conflict detection
-- **Lexical Editor Integration**: Native support for Lexical editor JSON format with bidirectional text conversion
-- **Version Control**: Automatic versioning with complete change history and rollback capabilities
-- **Advanced Change Operations**: Text-based and position-based change operations with preview functionality
-- **Optimistic Locking**: ETag-based conflict prevention for concurrent modifications
-- **Anonymous User Support**: Guest editing capabilities with proper user attribution
-- **Service Layer Architecture**: Centralized business logic through DocumentService pattern
-- **Comprehensive Testing**: Full test coverage with fixtures and integration testing
-
 ## Development Environment
 
 ### Quick Setup
@@ -79,7 +69,6 @@ The application implements a comprehensive service layer pattern for business lo
 
 **DocumentService (`documents/services.py`):**
 - **Centralized Business Logic**: All document operations flow through the service layer
-- **Cross-Interface Consistency**: Ensures identical behavior between API and web interfaces
 - **Transaction Management**: Atomic operations with automatic rollback on failures
 - **User Management**: Handles both authenticated and anonymous user scenarios
 - **Content Processing**: Bidirectional conversion between plain text and Lexical JSON format
@@ -88,9 +77,10 @@ The application implements a comprehensive service layer pattern for business lo
 **Key Service Methods:**
 - `create_document()` - Document creation with content processing and change tracking
 - `update_document()` - Updates with intelligent version management and conflict detection
-- `apply_changes()` - Structured change operations with preview and rollback capabilities
-- `preview_changes()` - Non-destructive change testing and validation
+- `apply_changes()` - Apply OT operations directly with version conflict detection
+- `preview_changes()` - Non-destructive OT operation testing with detailed results
 - `get_change_history()` - Complete audit trail retrieval with pagination
+- `_convert_changes_to_ot_operations()` - Helper to convert operation dictionaries to OTOperation objects
 
 ### Document Model Design
 The core `Document` model (`documents/models.py`) is engineered for distributed collaborative editing:
@@ -157,41 +147,64 @@ The `DocumentChange` model provides comprehensive change tracking and audit capa
 - **Rollback capability**: Change data format enables potential change reversal
 - **Analytics support**: Enables change frequency, user activity, and collaboration metrics
 
-### Advanced Change Operations System
-The application implements a sophisticated change operations system (`documents/change_operations.py`) for structured document modifications:
+### Operational Transform (OT) System
+The application implements a sophisticated **Operational Transform system** (`documents/operational_transforms.py`) for real-time collaborative editing with conflict resolution:
 
-**Change Operation Classes:**
+**Core OT Operations:**
+- **Insert**: Insert text at a position (sequential, not absolute)
+- **Delete**: Delete text by length (sequential, not absolute) 
+- **Retain**: Keep existing text unchanged (for composing operations)
 
-**1. ChangeOperation (Base Class):**
-- **Validation framework**: Ensures operation data integrity and format compliance
-- **Operation type restriction**: Currently supports "replace" operations with extensible architecture
-- **Error handling**: Raises `InvalidChangeError` for malformed operations
+**OTOperation Class:**
+- **Dataclass structure**: Type-safe operation representation with serialization
+- **Position-based semantics**: Operations work sequentially through document
+- **Attribute support**: Extensible for future formatting features
+- **Serialization**: JSON conversion for API transmission
 
-**2. TextBasedChange:**
-- **Text occurrence targeting**: Find and replace specific occurrences of text strings
-- **Occurrence numbering**: Replace the Nth occurrence (1-indexed) of target text
-- **Validation**: Ensures target text exists and occurrence number is valid
-- **Error handling**: Raises `TextNotFoundError` when target text/occurrence not found
+**OTOperationSet Class:**
+- **Sequential application**: Operations applied in proper OT sequence (retain → delete → insert)
+- **Fluent interface**: Chainable methods for building operation sets
+- **Text transformation**: Complete document transformation with validation
+- **Error handling**: Comprehensive validation of operation bounds
 
-**3. PositionBasedChange:**
-- **Character range targeting**: Replace text within specific start/end positions
-- **Range validation**: Ensures start <= end and positions are within text bounds
-- **Precise editing**: Ideal for structured edits where exact positions are known
-- **Error handling**: Raises `InvalidRangeError` for out-of-bounds ranges
+**OTTransformer Class:**
+- **Conflict resolution**: Advanced algorithms for concurrent editing scenarios
+- **Operation transformation**: Transform operations against each other for consistency
+- **Priority handling**: Conflict resolution with left/right priority
+- **Multi-operation support**: Transform entire operation sets
 
-**ChangeProcessor (Orchestration):**
-- **Multi-operation handling**: Processes lists of change operations atomically
-- **Intelligent ordering**: Position-based changes applied in reverse order to maintain positions
-- **Conflict resolution**: Handles overlapping changes and position adjustments
-- **Preview capability**: Test changes without permanent application
-- **Error aggregation**: Collects and reports all operation failures
+**OTDiffGenerator Class:**
+- **Text diff analysis**: Generate OT operations from text differences
+- **Common prefix/suffix optimization**: Efficient diff algorithms
+- **Incremental operations**: Optimized for typing patterns
+- **Validation**: Test generated operations before return
 
-**Exception Hierarchy (`documents/exceptions.py`):**
-- `DocumentChangeError` (base): All change-related exceptions
-- `VersionConflictError`: Version mismatch in concurrent editing
-- `InvalidChangeError`: Malformed or invalid change operations
-- `TextNotFoundError`: Target text not found for text-based changes
-- `InvalidRangeError`: Invalid position ranges for position-based changes
+### Streamlined Change Operations Architecture
+The system implements a **three-layer architecture** for handling document changes with direct OT processing:
+
+**1. Core OT Engine (`documents/operational_transforms.py`):**
+- **Pure OT implementation**: Insert/Delete/Retain operations with proper sequential semantics
+- **Sequential processing**: Operations work through document without absolute positions
+- **Conflict resolution**: Advanced transformation algorithms for concurrent editing
+- **OTOperationSet**: Complete operation orchestration with validation and application
+
+**2. Content Diff Generator (`documents/content_diff.py`):**
+- **Web form integration**: Convert web form changes directly to OT operations
+- **Pattern detection**: Analyze typing patterns for optimization
+- **API payload creation**: Format OT operations for API submission
+- **Validation**: Ensure operations can be applied safely
+
+**3. Web-to-API Bridge (`documents/api_client.py`):**
+- **Internal HTTP client**: Web interface communicates with API via HTTP
+- **Token management**: Automatic API token creation and handling
+- **Error mapping**: Convert API errors to web-friendly responses
+- **Test mode detection**: Use Django test client during testing
+
+**Service Layer Integration (`documents/services.py`):**
+- **Direct OT processing**: DocumentService uses OTOperationSet directly without intermediate layers
+- **Operation conversion**: Helper methods convert operation dictionaries to OTOperation objects
+- **Validation**: Comprehensive validation of OT operations before application
+- **Transaction safety**: Atomic operations with proper error handling
 
 ### Lexical Editor Integration
 The system provides comprehensive support for Lexical editor content through utility functions (`documents/utils.py`):
@@ -337,20 +350,27 @@ Uses Black for code formatting with default settings. All code should be formatt
 
 ## API Architecture
 
-### Dual-Interface Design
-The application implements a hybrid architecture supporting both REST API and traditional web interfaces:
+### Dual-Interface Design with Internal API Communication
+The application implements a hybrid architecture where the **web interface acts as an API client**:
 
 **API Interface (`/api/`):**
 - **RESTful design**: Resource-based URLs following Django REST Framework conventions
 - **JSON communication**: Request/response handling with structured JSON data
 - **Token authentication**: Header-based authentication for stateless API access
-- **Hypermedia support**: HATEOAS-style links in API root endpoint
+- **Advanced OT endpoints**: Change application, preview, and history endpoints
 
 **Web Interface (`/documents/`):**
 - **Traditional Django views**: Server-side rendering with template responses
-- **Session authentication**: Cookie-based authentication with CSRF protection
-- **AJAX enhancement**: Auto-save and dynamic updates without page reloads
+- **Internal API communication**: Web views use `DocumentAPIClient` to communicate with API endpoints
+- **Unified business logic**: Both interfaces use the same service layer through API
+- **Auto-save functionality**: AJAX calls to web views, which proxy to API endpoints
 - **Bootstrap 5 UI**: Responsive design with Crispy Forms integration
+
+**Internal API Client Pattern:**
+- **DocumentAPIClient class**: Web interface makes HTTP requests to its own API
+- **Token management**: Automatic API token creation for web users
+- **Error mapping**: API errors converted to web-friendly responses
+- **Test mode support**: Uses Django test client during testing for speed
 
 ### REST API Endpoints
 
@@ -362,12 +382,11 @@ The application implements a hybrid architecture supporting both REST API and tr
 - `GET /api/documents/{id}/` - Retrieve specific document with ETag
 - `PUT /api/documents/{id}/` - Full document update with version tracking
 - `PATCH /api/documents/{id}/` - Partial document update
-- `DELETE /api/documents/{id}/` - Delete document (owner only)
 
-**Advanced Change Operations:**
-- `PATCH /api/documents/{id}/changes/` - Apply structured changes with conflict detection
-- `POST /api/documents/{id}/preview/` - Preview changes without applying them
-- `GET /api/documents/{id}/history/` - Retrieve paginated change history
+**Advanced Operational Transform Operations:**
+- `PATCH /api/documents/{id}/changes/` - Apply OT operations with conflict detection and version control
+- `POST /api/documents/{id}/preview/` - Preview OT operations without applying them
+- `GET /api/documents/{id}/history/` - Retrieve paginated change history with full audit trail
 
 **System Endpoints:**
 - `GET /health/` - Service health check (database + Redis connectivity)
@@ -389,9 +408,9 @@ The application implements a hybrid architecture supporting both REST API and tr
 - `get_queryset()`: Search functionality across title and content fields
 
 **Custom Actions:**
-- `@action(detail=True, methods=["patch"]) apply_changes()`: Structured change application
-- `@action(detail=True, methods=["post"]) preview_changes()`: Non-destructive change preview
-- `@action(detail=True, methods=["get"]) change_history()`: Paginated change history
+- `@action(detail=True, methods=["patch"]) apply_changes()`: Apply OT operations with version conflict detection
+- `@action(detail=True, methods=["post"]) preview_changes()`: Preview OT operations without applying
+- `@action(detail=True, methods=["get"]) change_history()`: Retrieve complete change audit trail
 
 ### Web Interface Views
 
@@ -399,12 +418,12 @@ The application implements a hybrid architecture supporting both REST API and tr
 - `DocumentWebListView`: Paginated document list with user filtering
 - `DocumentWebDetailView`: Document detail with inline editing support
 - `DocumentWebCreateView`: Document creation with form validation
-- `DocumentWebDeleteView`: Document deletion with confirmation
 
 **AJAX Endpoints:**
-- `document_autosave()`: Auto-save functionality for real-time editing
-- **AJAX response handling**: JSON responses for seamless user experience
-- **Error handling**: Graceful error messages for both AJAX and standard requests
+- `document_autosave()`: Auto-save functionality that converts web form changes to OT operations
+- **Internal API communication**: AJAX endpoints use `DocumentAPIClient` to communicate with API
+- **OT integration**: Web form changes converted via `ContentDiffGenerator` to OT operations
+- **Error handling**: API errors mapped to web-friendly JSON responses via `APIClientMixin`
 
 ### Serializer Strategy
 
@@ -431,10 +450,10 @@ The application implements a hybrid architecture supporting both REST API and tr
 - **Service layer integration**: Routes creation through DocumentService
 
 **4. DocumentChangeSerializer:**
-- **Change operation validation**: Validates structured change operations
+- **OT operation validation**: Validates Operational Transform operations (insert/delete/retain)
 - **Version conflict detection**: Ensures expected version matches current version
-- **Operation type validation**: Supports text-based and position-based changes
-- **Service layer integration**: Routes changes through DocumentService
+- **Sequential operation support**: Handles proper OT operation sequences
+- **Service layer integration**: Routes OT operations through DocumentService
 
 **5. ChangeOperationSerializer:**
 - **Operation validation**: Validates individual change operations
@@ -563,7 +582,6 @@ The web interface provides a complete document management system with responsive
 - `documents/` - Document list view (paginated)
 - `documents/create/` - Document creation form
 - `documents/<uuid:pk>/` - Document detail view with editing
-- `documents/<uuid:pk>/delete/` - Document deletion confirmation
 - `documents/<uuid:pk>/autosave/` - AJAX auto-save endpoint
 
 ## Development Workflow
@@ -753,11 +771,11 @@ The testing strategy emphasizes comprehensive coverage with realistic scenarios:
 - **Change detection**: Compares current vs. new data to determine changes
 - **Audit support**: Enables precise change tracking and rollback capabilities
 
-**Advanced Change Operations:**
-- **Multiple operation types**: Text-based and position-based change operations
-- **Conflict resolution**: Intelligent handling of overlapping changes
-- **Preview functionality**: Non-destructive change testing before application
-- **Rollback capability**: Change format enables potential operation reversal
+**Operational Transform System:**
+- **Real-time collaboration**: Proper OT implementation with Insert/Delete/Retain operations
+- **Conflict resolution**: Advanced transformation algorithms for concurrent editing
+- **Sequential processing**: Operations work through document without absolute positions
+- **Web integration**: Automatic conversion of web form changes to OT operations
 
 **Comprehensive Audit Trail:**
 - **Complete change history**: Every document modification is tracked

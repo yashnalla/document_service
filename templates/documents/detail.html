@@ -13,7 +13,7 @@
                     <a href="{% url 'document_list' %}">My Documents</a>
                 </li>
                 <li class="breadcrumb-item active" aria-current="page">
-                    <span x-text="title || 'Untitled Document'"></span>
+                    {{ document.title }}
                 </li>
             </ol>
         </nav>
@@ -42,13 +42,6 @@
                         Saving...
                     </span>
                 </button>
-                <button type="button" class="btn btn-outline-danger" 
-                        hx-delete="{% url 'document_delete' document.pk %}"
-                        hx-confirm="Are you sure you want to delete this document?"
-                        hx-target="#delete-target"
-                        hx-swap="innerHTML">
-                    🗑️ Delete
-                </button>
             </div>
         </div>
     </div>
@@ -59,16 +52,13 @@
             <form @submit.prevent="save()">
                 {% csrf_token %}
                 
-                <!-- Title Field -->
+                <!-- Title (Read-only) -->
                 <div class="mb-3">
-                    <label for="title" class="form-label">Title</label>
-                    <input type="text" 
-                           class="form-control form-control-lg" 
-                           id="title" 
-                           name="title"
-                           x-model="title"
-                           @input="markDirty()"
-                           placeholder="Enter document title...">
+                    <label class="form-label">Title</label>
+                    <div class="form-control form-control-lg bg-light" style="border: none;">
+                        {{ document.title }}
+                    </div>
+                    <small class="form-text text-muted">Document titles cannot be changed after creation.</small>
                 </div>
                 
                 <!-- Content Field -->
@@ -100,9 +90,6 @@
             </div>
         </div>
     </div>
-    
-    <!-- Delete Target for HTMX -->
-    <div id="delete-target"></div>
 </div>
 
 {% endblock %}
@@ -111,22 +98,12 @@
 <script>
     function documentEditor() {
         return {
-            title: '{{ document.title|escapejs }}',
             content: '{{ document.get_plain_text|escapejs }}',
-            originalTitle: '{{ document.title|escapejs }}',
             originalContent: '{{ document.get_plain_text|escapejs }}',
             isDirty: false,
             saving: false,
-            autoSaveInterval: null,
 
             init() {
-                // Auto-save every 10 seconds if document is dirty
-                this.autoSaveInterval = setInterval(() => {
-                    if (this.isDirty && !this.saving) {
-                        this.save();
-                    }
-                }, 10000);
-                
                 // Save on page unload if dirty
                 window.addEventListener('beforeunload', (e) => {
                     if (this.isDirty) {
@@ -137,7 +114,7 @@
             },
 
             markDirty() {
-                this.isDirty = (this.title !== this.originalTitle || this.content !== this.originalContent);
+                this.isDirty = (this.content !== this.originalContent);
             },
 
             async save() {
@@ -148,10 +125,9 @@
                 try {
                     const formData = new FormData();
                     formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-                    formData.append('title', this.title);
                     formData.append('content', this.content);
                     
-                    const response = await fetch('{% url "document_autosave" document.pk %}', {
+                    const response = await fetch('{% url "document_detail" document.pk %}', {
                         method: 'POST',
                         body: formData,
                         headers: {
@@ -160,7 +136,6 @@
                     });
                     
                     if (response.ok) {
-                        this.originalTitle = this.title;
                         this.originalContent = this.content;
                         this.isDirty = false;
                         
@@ -193,13 +168,5 @@
             }
         };
     }
-    
-    // Handle delete response
-    document.addEventListener('htmx:afterRequest', function(event) {
-        if (event.detail.xhr.status === 200 && event.detail.requestConfig.verb === 'delete') {
-            // Redirect to document list after successful delete
-            window.location.href = '{% url "document_list" %}';
-        }
-    });
 </script>
 {% endblock %}

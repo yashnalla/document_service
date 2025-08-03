@@ -5,11 +5,42 @@ from .models import Document
 
 
 class DocumentForm(forms.ModelForm):
+    """Form for editing document content only (title is immutable after creation)"""
     # Override content field to accept plain text
     content = forms.CharField(
         widget=forms.Textarea(attrs={
             'rows': 15,
             'placeholder': 'Start typing your document content...'
+        }),
+        required=False,
+        help_text="Enter your document content as plain text"
+    )
+    
+    class Meta:
+        model = Document
+        fields = ['content']  # Only content field - title is immutable
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = FormHelper()
+        self.helper.layout = Layout(
+            Field('content', css_class='mb-3'),
+        )
+        # Don't add form tags - we'll handle them in templates
+        self.helper.form_tag = False
+
+    def save(self, commit=True, user=None):
+        # Content processing and user assignment is handled in the view
+        return super().save(commit=commit)
+
+
+class DocumentCreateForm(forms.ModelForm):
+    """Form for creating new documents with title and content"""
+    # Override content field to accept plain text
+    content = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'rows': 15,
+            'placeholder': 'Start typing your document content... (optional)'
         }),
         required=False,
         help_text="Enter your document content as plain text"
@@ -42,16 +73,5 @@ class DocumentForm(forms.ModelForm):
         return title.strip()
 
     def save(self, commit=True, user=None):
-        # For now, just use the standard Django ModelForm save
         # Content processing and user assignment is handled in the view
         return super().save(commit=commit)
-
-
-class DocumentCreateForm(DocumentForm):
-    """Specialized form for creating documents"""
-    
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Make content optional for creation
-        self.fields['content'].required = False
-        self.fields['content'].widget.attrs['placeholder'] = 'Start typing your document content... (optional)'

@@ -147,28 +147,6 @@ def test_document_partial_update(user, simple_document_content):
     assert document.content == simple_document_content
 
 
-@pytest.mark.django_db
-def test_document_delete(user, simple_document_content):
-    """Test document deletion."""
-    client = APIClient()
-    client.force_authenticate(user=user)
-
-    document = Document.objects.create(
-        title="Document to Delete",
-        content=simple_document_content,
-        created_by=user,
-    )
-    document_id = document.id
-
-    url = reverse("document-detail", kwargs={"pk": document.pk})
-    response = client.delete(url)
-
-    assert response.status_code == status.HTTP_204_NO_CONTENT
-
-    # Document should be deleted
-    with pytest.raises(Document.DoesNotExist):
-        Document.objects.get(id=document_id)
-
 
 @pytest.mark.django_db
 def test_document_search_by_title(user, simple_document_content):

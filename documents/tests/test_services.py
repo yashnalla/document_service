@@ -258,7 +258,7 @@ class TestDocumentService:
             DocumentService.update_document(document=document, title=long_title, user=user)
 
     def test_apply_changes_success(self, user):
-        """Test applying structured changes."""
+        """Test applying structured OT changes."""
         document = DocumentService.create_document(
             title="Test Document",
             content_text="Hello world",
@@ -266,12 +266,11 @@ class TestDocumentService:
         )
         original_version = document.version
         
+        # OT operations: retain "Hello ", delete "world", insert "universe"
         changes = [
-            {
-                "operation": "replace",
-                "target": {"text": "world", "occurrence": 1},
-                "replacement": "universe"
-            }
+            {"operation": "retain", "length": 6},  # "Hello "
+            {"operation": "delete", "length": 5},  # "world"
+            {"operation": "insert", "content": "universe"}  # "universe"
         ]
         
         updated_document = DocumentService.apply_changes(
@@ -294,7 +293,7 @@ class TestDocumentService:
         """Test version conflict in apply_changes."""
         document = DocumentService.create_document(title="Test", user=user)
         
-        changes = [{"operation": "replace", "target": {"text": "test"}, "replacement": "new"}]
+        changes = [{"operation": "insert", "content": "new text"}]
         
         with pytest.raises(VersionConflictError):
             DocumentService.apply_changes(
@@ -324,12 +323,11 @@ class TestDocumentService:
             user=user
         )
         
+        # OT operations: retain "Hello ", delete "world", insert "universe"
         changes = [
-            {
-                "operation": "replace",
-                "target": {"text": "world", "occurrence": 1},
-                "replacement": "universe"
-            }
+            {"operation": "retain", "length": 6},  # "Hello "
+            {"operation": "delete", "length": 5},  # "world"
+            {"operation": "insert", "content": "universe"}  # "universe"
         ]
         
         preview = DocumentService.preview_changes(document, changes)

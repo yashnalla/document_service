@@ -63,28 +63,3 @@
 {% endif %}
 
 {% endblock %}
-
-{% block extra_js %}
-<script>
-    // Handle HTMX events for document actions
-    document.addEventListener('htmx:afterRequest', function(event) {
-        if (event.detail.xhr.status === 200 && event.detail.requestConfig.verb === 'delete') {
-            // Document deleted successfully, remove the card
-            const target = event.target.closest('.col-md-6');
-            if (target) {
-                target.remove();
-            }
-            
-            // Show success message
-            const container = document.querySelector('.container');
-            const alert = document.createElement('div');
-            alert.className = 'alert alert-success alert-dismissible fade show mt-3';
-            alert.innerHTML = `
-                Document deleted successfully!
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            `;
-            container.insertBefore(alert, container.firstChild);
-        }
-    });
-</script>
-{% endblock %}

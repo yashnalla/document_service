@@ -4,7 +4,10 @@ from django.db import transaction
 from .models import Document, DocumentChange
 from .utils import create_basic_lexical_content, update_lexical_content_with_text
 from .exceptions import VersionConflictError, InvalidChangeError
-from .change_operations import ChangeProcessor
+from .operational_transforms import OTOperation, OTOperationSet, OperationType
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class DocumentService:
@@ -14,6 +17,61 @@ class DocumentService:
     This service ensures consistent behavior across API and web interfaces
     for document creation, updates, and change tracking.
     """
+
+    @staticmethod
+    def _convert_changes_to_ot_operations(changes: List[Dict[str, Any]]) -> List[OTOperation]:
+        """
+        Convert operation dictionaries to OTOperation objects.
+        
+        Args:
+            changes: List of operation dictionaries
+            
+        Returns:
+            List of OTOperation objects
+            
+        Raises:
+            InvalidChangeError: If operations are invalid
+        """
+        if not changes:
+            raise InvalidChangeError("At least one operation is required")
+        
+        ot_operations = []
+        
+        for i, change in enumerate(changes):
+            if not isinstance(change, dict):
+                raise InvalidChangeError(f"Operation {i+1} must be a dictionary")
+                
+            operation = change.get("operation")
+            if operation not in ["retain", "insert", "delete"]:
+                raise InvalidChangeError(
+                    f"Operation {i+1}: Unsupported operation '{operation}'. "
+                    f"Supported operations: 'retain', 'insert', 'delete'"
+                )
+            
+            try:
+                if operation == "retain":
+                    length = change.get("length")
+                    if not isinstance(length, int) or length <= 0:
+                        raise InvalidChangeError(f"Operation {i+1}: Retain operation requires positive length")
+                    ot_operations.append(OTOperation(OperationType.RETAIN, length=length))
+                    
+                elif operation == "insert":
+                    content = change.get("content")
+                    if not isinstance(content, str) or len(content) == 0:
+                        raise InvalidChangeError(f"Operation {i+1}: Insert operation requires non-empty content")
+                    ot_operations.append(OTOperation(OperationType.INSERT, content=content))
+                    
+                elif operation == "delete":
+                    length = change.get("length")
+                    if not isinstance(length, int) or length <= 0:
+                        raise InvalidChangeError(f"Operation {i+1}: Delete operation requires positive length")
+                    ot_operations.append(OTOperation(OperationType.DELETE, length=length))
+                    
+            except Exception as e:
+                raise InvalidChangeError(f"Operation {i+1}: {str(e)}")
+        
+        logger.info(f"Converted {len(changes)} operations to OT operations")
+        return ot_operations
 
     @staticmethod
     def create_document(
@@ -246,11 +304,17 @@ class DocumentService:
         # Get current plain text
         original_text = document.get_plain_text()
 
-        # Apply changes
+        # Apply changes using OT operations
         try:
-            processor = ChangeProcessor(changes)
-            new_text = processor.apply_changes(original_text)
+            logger.info(f"DocumentService.apply_changes: Converting {len(changes)} operations")
+            ot_operations = DocumentService._convert_changes_to_ot_operations(changes)
+            operation_set = OTOperationSet(ot_operations)
+            
+            logger.info(f"Applying OT operations to text: '{original_text}' (length: {len(original_text)})")
+            new_text = operation_set.apply(original_text)
+            logger.info(f"OT result: '{new_text}' (length: {len(new_text)})")
         except Exception as e:
+            logger.error(f"Failed to apply changes: {str(e)}")
             raise InvalidChangeError(f"Failed to apply changes: {str(e)}")
 
         with transaction.atomic():
@@ -289,9 +353,23 @@ class DocumentService:
             raise ValueError("No changes provided")
 
         try:
-            processor = ChangeProcessor(changes)
+            logger.info(f"DocumentService.preview_changes: Converting {len(changes)} operations")
+            ot_operations = DocumentService._convert_changes_to_ot_operations(changes)
+            operation_set = OTOperationSet(ot_operations)
+            
             original_text = document.get_plain_text()
-            preview_result = processor.preview_changes(original_text)
+            logger.info(f"Previewing OT operations on text: '{original_text}' (length: {len(original_text)})")
+            
+            # Apply operations to get preview result
+            preview_text = operation_set.apply(original_text)
+            logger.info(f"Preview result: '{preview_text}' (length: {len(preview_text)})")
+            
+            preview_result = {
+                "original_text": original_text,
+                "preview_text": preview_text,
+                "operations": [op.to_dict() for op in ot_operations],
+                "operation_count": len(ot_operations)
+            }
 
             return {
                 "document_id": document.id,
@@ -299,6 +377,7 @@ class DocumentService:
                 "preview": preview_result,
             }
         except Exception as e:
+            logger.error(f"Preview failed: {str(e)}")
             raise InvalidChangeError(f"Preview failed: {str(e)}")
 
     @staticmethod

@@ -11,8 +11,8 @@ from documents.models import Document
 
 
 @pytest.mark.django_db
-def test_full_document_crud_workflow(user, integration_test_content):
-    """Test complete CRUD workflow for documents."""
+def test_document_create_read_update_workflow(user, integration_test_content):
+    """Test create, read, and update workflow for documents."""
     client = APIClient()
     client.force_authenticate(user=user)
 
@@ -63,14 +63,6 @@ def test_full_document_crud_workflow(user, integration_test_content):
     assert update_response.status_code == status.HTTP_200_OK
     assert update_response.data["title"] == "Updated Integration Test Document"
     assert update_response.data["version"] == 2  # Version should increment
-
-    # DELETE
-    delete_response = client.delete(detail_url)
-    assert delete_response.status_code == status.HTTP_204_NO_CONTENT
-
-    # Verify deletion
-    verify_response = client.get(detail_url)
-    assert verify_response.status_code == status.HTTP_404_NOT_FOUND
 
 
 @pytest.mark.django_db

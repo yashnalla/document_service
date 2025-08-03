@@ -113,7 +113,7 @@ prune: ## Remove all unused Docker objects
 	docker system prune -a -f --volumes
 
 # Development workflow
-dev-setup: build up migrate ## Complete development setup
+dev-setup: build up migrate lock ## Complete development setup
 	@echo "🚀 Development environment is ready!"
 	@echo "📝 Create a superuser with: make createsuperuser"
 	@echo "🌐 Access the app at: http://localhost:8000"
@@ -125,8 +125,8 @@ dev-setup-fresh: ## Fresh development setup with superuser
 	@make dev-setup
 	@echo "👤 Creating superuser (admin/admin123)..."
 	@docker-compose exec web python manage.py shell -c "from django.contrib.auth.models import User; User.objects.create_superuser('admin', 'admin@example.com', 'admin123') if not User.objects.filter(username='admin').exists() else print('Admin user already exists')"
-
-dev-reset: down clean dev-setup ## Reset entire development environment
+	@docker-compose exec web poetry run python manage.py create_test_users
+dev-reset: down clean dev-setup-fresh ## Reset entire development environment
 
 # Production-like commands
 prod-build: ## Build for production

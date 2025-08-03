@@ -251,19 +251,38 @@ def token_authenticated_client(api_client, user_token):
 @pytest.fixture
 def document_factory(user):
     """Factory for creating test documents."""
-    def _create_document(title="Test Document", content=None, created_by=None):
-        if content is None:
-            content = {
-                "type": "doc",
-                "content": [
-                    {
-                        "type": "paragraph",
-                        "content": [{"type": "text", "text": "Test content"}],
-                    }
-                ],
-            }
+    def _create_document(title="Test Document", content=None, content_text=None, created_by=None):
         if created_by is None:
             created_by = user
+            
+        if content_text is not None:
+            # Convert text to Lexical format
+            from documents.utils import create_basic_lexical_content
+            content = create_basic_lexical_content(content_text)
+        elif content is None:
+            content = {
+                "root": {
+                    "type": "root",
+                    "children": [{
+                        "type": "paragraph",
+                        "children": [{
+                            "type": "text",
+                            "text": "Test content",
+                            "format": 0,
+                            "mode": "normal",
+                            "style": "",
+                            "detail": 0
+                        }],
+                        "format": "",
+                        "indent": 0,
+                        "version": 1
+                    }],
+                    "direction": "ltr",
+                    "format": "",
+                    "indent": 0,
+                    "version": 1
+                }
+            }
         
         return Document.objects.create(
             title=title,

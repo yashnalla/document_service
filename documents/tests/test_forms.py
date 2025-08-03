@@ -1,4 +1,5 @@
 import pytest
+from django import forms
 from django.contrib.auth.models import User
 from documents.forms import DocumentForm, DocumentCreateForm
 from documents.models import Document
@@ -11,38 +12,26 @@ class TestDocumentForm:
     def test_document_form_valid_data(self):
         """Test form with valid data"""
         form_data = {
-            'title': 'Test Document',
             'content': 'This is test content'
         }
         form = DocumentForm(data=form_data)
         assert form.is_valid()
     
-    def test_document_form_empty_title(self):
-        """Test form with empty title should be invalid"""
-        form_data = {
-            'title': '',
-            'content': 'This is test content'
-        }
-        form = DocumentForm(data=form_data)
-        assert not form.is_valid()
-        assert 'title' in form.errors
-        assert 'This field is required.' in form.errors['title']
+    def test_document_form_no_title_field(self):
+        """Test that DocumentForm does not have title field (immutable after creation)"""
+        form = DocumentForm()
+        assert 'title' not in form.fields
+        assert 'content' in form.fields
     
-    def test_document_form_whitespace_only_title(self):
-        """Test form with whitespace-only title should be invalid"""
-        form_data = {
-            'title': '   ',
-            'content': 'This is test content'
-        }
+    def test_document_form_content_not_required(self):
+        """Test that content is not required in DocumentForm"""
+        form_data = {}
         form = DocumentForm(data=form_data)
-        assert not form.is_valid()
-        assert 'title' in form.errors
-        assert 'This field is required.' in form.errors['title']
+        assert form.is_valid()
     
     def test_document_form_empty_content(self):
         """Test form with empty content should be valid"""
         form_data = {
-            'title': 'Test Document',
             'content': ''
         }
         form = DocumentForm(data=form_data)
@@ -51,14 +40,13 @@ class TestDocumentForm:
     def test_document_form_save_commit_false(self):
         """Test form save with commit=False"""
         form_data = {
-            'title': 'Test Document',
             'content': 'This is test content'
         }
         form = DocumentForm(data=form_data)
         assert form.is_valid()
         
         document = form.save(commit=False)
-        assert document.title == 'Test Document'
+        # DocumentForm only handles content, not title
         # Note: Since our form's save method just calls super().save(commit=commit),
         # the document might still get a UUID assigned even with commit=False
         # The important thing is that it's not saved to the database
@@ -73,26 +61,26 @@ class TestDocumentForm:
         assert hasattr(form, 'helper')
         assert form.helper.form_tag is False
     
-    def test_document_form_title_cleaning(self):
-        """Test that title is properly cleaned (stripped)"""
-        form_data = {
-            'title': '  Test Document  ',
-            'content': 'This is test content'
-        }
-        form = DocumentForm(data=form_data)
-        assert form.is_valid()
-        cleaned_title = form.clean_title()
-        assert cleaned_title == 'Test Document'
+    def test_document_form_content_widget(self):
+        """Test that content field has proper widget configuration"""
+        form = DocumentForm()
+        content_field = form.fields['content']
+        widget = content_field.widget
+        assert widget.attrs['rows'] == 15
+        assert 'Start typing your document content...' in widget.attrs['placeholder']
 
 
 @pytest.mark.django_db
 class TestDocumentCreateForm:
     """Test suite for DocumentCreateForm"""
     
-    def test_document_create_form_inherits_from_document_form(self):
-        """Test that DocumentCreateForm inherits from DocumentForm"""
+    def test_document_create_form_inherits_from_model_form(self):
+        """Test that DocumentCreateForm inherits from ModelForm"""
         form = DocumentCreateForm()
-        assert isinstance(form, DocumentForm)
+        assert isinstance(form, forms.ModelForm)
+        # DocumentCreateForm is separate from DocumentForm now
+        assert 'title' in form.fields
+        assert 'content' in form.fields
     
     def test_document_create_form_content_not_required(self):
         """Test that content is not required for creation"""

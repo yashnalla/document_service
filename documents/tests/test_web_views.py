@@ -183,7 +183,10 @@ class TestDocumentWebCreateView:
         
         document = Document.objects.get(title='Empty Document')
         assert document.get_plain_text() == ''
-        assert document.content['root']['children'] == []
+        # Empty document should have one empty paragraph (correct Lexical structure)
+        assert len(document.content['root']['children']) == 1
+        assert document.content['root']['children'][0]['type'] == 'paragraph'
+        assert document.content['root']['children'][0]['children'] == []
 
 
 @pytest.mark.django_db
@@ -253,8 +256,7 @@ class TestDocumentWebDetailView:
         
         url = reverse('document_detail', kwargs={'pk': document.pk})
         data = {
-            'title': 'Updated Title',
-            'content': 'Updated content'
+            'content': 'Updated content'  # Only content can be updated, title is immutable
         }
         response = client.post(url, data)
         
@@ -263,92 +265,11 @@ class TestDocumentWebDetailView:
         
         # Check document was updated
         document.refresh_from_db()
-        assert document.title == 'Updated Title'
+        assert document.title == 'Original Title'  # Title should remain unchanged
         assert document.get_plain_text() == 'Updated content'
         assert document.last_modified_by == user
 
 
-@pytest.mark.django_db
-class TestDocumentWebDeleteView:
-    """Test suite for DocumentWebDeleteView"""
-    
-    def test_delete_view_anonymous_user_redirects(self, user):
-        """Test that anonymous users are redirected to login"""
-        document = Document.objects.create(
-            title='Test Document',
-            content={'root': {'type': 'root', 'children': []}},
-            created_by=user
-        )
-        
-        client = Client()
-        url = reverse('document_delete', kwargs={'pk': document.pk})
-        response = client.delete(url)
-        
-        assert response.status_code == 302
-        assert '/accounts/login/' in response.url
-    
-    def test_delete_view_authenticated_user(self, user):
-        """Test document deletion by authenticated user"""
-        document = Document.objects.create(
-            title='Test Document',
-            content={'root': {'type': 'root', 'children': []}},
-            created_by=user
-        )
-        document_id = document.pk
-        
-        client = Client()
-        client.force_login(user)
-        
-        url = reverse('document_delete', kwargs={'pk': document.pk})
-        response = client.delete(url)
-        
-        # Should redirect to document list
-        assert response.status_code == 302
-        assert reverse('document_list') in response.url
-        
-        # Document should be deleted
-        assert not Document.objects.filter(pk=document_id).exists()
-    
-    def test_delete_view_other_user_document_404(self, user):
-        """Test that users can't delete other users' documents"""
-        other_user = User.objects.create_user(username='other', password='pass')
-        document = Document.objects.create(
-            title='Other User Document',
-            content={'root': {'type': 'root', 'children': []}},
-            created_by=other_user
-        )
-        
-        client = Client()
-        client.force_login(user)
-        
-        url = reverse('document_delete', kwargs={'pk': document.pk})
-        response = client.delete(url)
-        
-        assert response.status_code == 404
-        # Document should still exist
-        assert Document.objects.filter(pk=document.pk).exists()
-    
-    def test_delete_view_ajax_request(self, user):
-        """Test AJAX delete request returns JSON response"""
-        document = Document.objects.create(
-            title='Test Document',
-            content={'root': {'type': 'root', 'children': []}},
-            created_by=user
-        )
-        
-        client = Client()
-        client.force_login(user)
-        
-        url = reverse('document_delete', kwargs={'pk': document.pk})
-        response = client.delete(
-            url,
-            HTTP_X_REQUESTED_WITH='XMLHttpRequest'
-        )
-        
-        assert response.status_code == 200
-        response_data = json.loads(response.content)
-        assert response_data['success'] is True
-        assert 'deleted successfully' in response_data['message']
 
 
 @pytest.mark.django_db 
@@ -356,7 +277,7 @@ class TestDocumentWebViewsIntegration:
     """Integration tests for web views"""
     
     def test_full_document_lifecycle(self, user):
-        """Test full document create -> edit -> delete lifecycle"""
+        """Test full document create -> edit lifecycle"""
         client = Client()
         client.force_login(user)
         
@@ -371,28 +292,20 @@ class TestDocumentWebViewsIntegration:
         
         document = Document.objects.get(title='Lifecycle Test Document')
         
-        # 2. Edit document
+        # 2. Edit document (only content, title is immutable)
         detail_url = reverse('document_detail', kwargs={'pk': document.pk})
         edit_data = {
-            'title': 'Updated Lifecycle Document',
             'content': 'Updated content'
         }
         response = client.post(detail_url, edit_data)
         assert response.status_code == 302
         
         document.refresh_from_db()
-        assert document.title == 'Updated Lifecycle Document'
+        assert document.title == 'Lifecycle Test Document'  # Title unchanged
         assert document.get_plain_text() == 'Updated content'
-        
-        # 3. Delete document
-        delete_url = reverse('document_delete', kwargs={'pk': document.pk})
-        response = client.delete(delete_url)
-        assert response.status_code == 302
-        
-        assert not Document.objects.filter(pk=document.pk).exists()
     
     def test_document_list_after_operations(self, user):
-        """Test document list reflects create/delete operations"""
+        """Test document list reflects create operations"""
         client = Client()
         client.force_login(user)
         
@@ -423,12 +336,3 @@ class TestDocumentWebViewsIntegration:
         # List should now have 2 documents
         response = client.get(list_url)
         assert len(response.context['documents']) == 2
-        
-        # Delete one document
-        document = Document.objects.first()
-        delete_url = reverse('document_delete', kwargs={'pk': document.pk})
-        client.delete(delete_url)
-        
-        # List should now have 1 document
-        response = client.get(list_url)
-        assert len(response.context['documents']) == 1

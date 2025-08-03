@@ -60,23 +60,11 @@ window.DocumentApp = {
 // Document Editor Component (for detail view)
 function documentEditor() {
     return {
-        title: '',
         content: '',
-        originalTitle: '',
         originalContent: '',
         isDirty: false,
-        saving: false,
-        autoSaveInterval: null,
-        lastSaveTime: null,
 
         init() {
-            // Initialize auto-save every 10 seconds
-            this.autoSaveInterval = setInterval(() => {
-                if (this.isDirty && !this.saving) {
-                    this.save();
-                }
-            }, 10000);
-            
             // Warn about unsaved changes on page unload
             window.addEventListener('beforeunload', (e) => {
                 if (this.isDirty) {
@@ -85,76 +73,10 @@ function documentEditor() {
                     return 'You have unsaved changes. Are you sure you want to leave?';
                 }
             });
-            
-            // Keyboard shortcuts
-            document.addEventListener('keydown', (e) => {
-                // Ctrl+S or Cmd+S to save
-                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-                    e.preventDefault();
-                    this.save();
-                }
-            });
         },
 
         markDirty() {
-            this.isDirty = (this.title !== this.originalTitle || this.content !== this.originalContent);
-        },
-
-        async save() {
-            if (this.saving) return;
-            
-            this.saving = true;
-            
-            try {
-                const formData = new FormData();
-                formData.append('csrfmiddlewaretoken', DocumentApp.getCSRFToken());
-                formData.append('title', this.title);
-                formData.append('content', this.content);
-                
-                const url = window.location.pathname.replace('/edit', '') + '/autosave/';
-                const response = await fetch(url, {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                });
-                
-                if (response.ok) {
-                    this.originalTitle = this.title;
-                    this.originalContent = this.content;
-                    this.isDirty = false;
-                    this.lastSaveTime = new Date();
-                    
-                    DocumentApp.showMessage('Document saved successfully!', 'success', 2000);
-                } else {
-                    const errorData = await response.json();
-                    DocumentApp.showMessage(
-                        errorData.message || 'Failed to save document. Please try again.',
-                        'danger'
-                    );
-                }
-            } catch (error) {
-                console.error('Save error:', error);
-                DocumentApp.showMessage(
-                    'Failed to save document. Please check your connection.',
-                    'danger'
-                );
-            } finally {
-                this.saving = false;
-            }
-        },
-
-        getSaveStatusText() {
-            if (this.saving) return 'Saving...';
-            if (this.isDirty) return 'Unsaved changes';
-            if (this.lastSaveTime) {
-                const minutes = Math.floor((new Date() - this.lastSaveTime) / 60000);
-                if (minutes === 0) return 'Saved just now';
-                if (minutes === 1) return 'Saved 1 minute ago';
-                return `Saved ${minutes} minutes ago`;
-            }
-            return 'Saved';
+            this.isDirty = (this.content !== this.originalContent);
         }
     };
 }
