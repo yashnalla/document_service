@@ -258,7 +258,8 @@ class DocumentWebDetailView(LoginRequiredMixin, DetailView):
     context_object_name = 'document'
 
     def get_queryset(self):
-        return Document.objects.filter(created_by=self.request.user)
+        # Allow all authenticated users to view any document for collaboration
+        return Document.objects.all()
 
     def post(self, request, *args, **kwargs):
         """Handle document updates via API with OT operations"""

@@ -313,6 +313,289 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// WebSocket Component for Document Collaboration
+function documentWebSocket() {
+    return {
+        socket: null,
+        connectionState: 'disconnected', // disconnected, connecting, connected, error
+        activeUsers: [],
+        typingUsers: [],
+        reconnectAttempts: 0,
+        maxReconnectAttempts: 5,
+        reconnectInterval: 1000,
+        pingInterval: null,
+        documentId: '',
+
+        init() {
+            // Get document ID from the current URL or data attribute
+            this.documentId = this.getDocumentId();
+            if (this.documentId) {
+                this.connect();
+                
+                // Setup ping interval
+                this.pingInterval = setInterval(() => {
+                    this.sendPing();
+                }, 30000); // Ping every 30 seconds
+                
+                // Cleanup on page unload
+                window.addEventListener('beforeunload', () => {
+                    this.disconnect();
+                });
+            }
+        },
+
+        getDocumentId() {
+            // Extract document ID from URL path like /documents/uuid/
+            const path = window.location.pathname;
+            const matches = path.match(/\/documents\/([0-9a-f-]+)\//);
+            return matches ? matches[1] : null;
+        },
+
+        connect() {
+            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                return;
+            }
+
+            this.connectionState = 'connecting';
+            
+            // Determine WebSocket protocol and host
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host;
+            const wsUrl = `${protocol}//${host}/ws/documents/${this.documentId}/`;
+
+            try {
+                this.socket = new WebSocket(wsUrl);
+                this.setupEventHandlers();
+            } catch (error) {
+                console.error('WebSocket connection error:', error);
+                this.connectionState = 'error';
+                this.scheduleReconnect();
+            }
+        },
+
+        disconnect() {
+            if (this.pingInterval) {
+                clearInterval(this.pingInterval);
+                this.pingInterval = null;
+            }
+            
+            if (this.socket) {
+                this.socket.close();
+                this.socket = null;
+            }
+            
+            this.connectionState = 'disconnected';
+            this.activeUsers = [];
+            this.typingUsers = [];
+        },
+
+        setupEventHandlers() {
+            this.socket.onopen = () => {
+                console.log('WebSocket connected');
+                this.connectionState = 'connected';
+                this.reconnectAttempts = 0;
+            };
+
+            this.socket.onclose = (event) => {
+                console.log('WebSocket disconnected:', event.code, event.reason);
+                this.connectionState = 'disconnected';
+                this.activeUsers = [];
+                this.typingUsers = [];
+                
+                if (event.code !== 1000) { // Not a normal closure
+                    this.scheduleReconnect();
+                }
+            };
+
+            this.socket.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                this.connectionState = 'error';
+            };
+
+            this.socket.onmessage = (event) => {
+                this.handleMessage(event.data);
+            };
+        },
+
+        handleMessage(data) {
+            try {
+                const message = JSON.parse(data);
+                
+                switch (message.type) {
+                    case 'pong':
+                        // Handle ping response
+                        break;
+                        
+                    case 'presence_update':
+                        this.handlePresenceUpdate(message);
+                        break;
+                        
+                    case 'user_typing':
+                        this.handleUserTyping(message);
+                        break;
+                        
+                    case 'cursor_position':
+                        this.handleCursorPosition(message);
+                        break;
+                        
+                    case 'error':
+                        console.error('WebSocket server error:', message.message);
+                        this.showNotification(message.message, 'danger');
+                        break;
+                        
+                    default:
+                        console.warn('Unknown message type:', message.type);
+                }
+            } catch (error) {
+                console.error('Error parsing WebSocket message:', error);
+            }
+        },
+
+        handlePresenceUpdate(message) {
+            console.log('Presence update:', message);
+            
+            // Update active users list
+            if (message.action === 'user_joined') {
+                this.showNotification(`${message.username} joined the document`, 'info', 2000);
+            } else if (message.action === 'user_left') {
+                this.showNotification(`${message.username} left the document`, 'info', 2000);
+            }
+            
+            // For now, we'll track users manually since the full presence system 
+            // would require more complex Redis operations
+            this.updateActiveUsersList(message);
+        },
+
+        updateActiveUsersList(message) {
+            // Simple presence tracking - in production you'd get the full active user list
+            if (message.action === 'user_joined') {
+                if (!this.activeUsers.find(u => u.user_id === message.user_id)) {
+                    this.activeUsers.push({
+                        user_id: message.user_id,
+                        username: message.username
+                    });
+                }
+            } else if (message.action === 'user_left') {
+                this.activeUsers = this.activeUsers.filter(u => u.user_id !== message.user_id);
+            }
+        },
+
+        handleUserTyping(message) {
+            const index = this.typingUsers.findIndex(u => u.user_id === message.user_id);
+            
+            if (message.is_typing) {
+                if (index === -1) {
+                    this.typingUsers.push({
+                        user_id: message.user_id,
+                        username: message.username
+                    });
+                }
+            } else {
+                if (index !== -1) {
+                    this.typingUsers.splice(index, 1);
+                }
+            }
+        },
+
+        handleCursorPosition(message) {
+            // Future enhancement: handle cursor position updates
+            console.log('Cursor position update:', message);
+        },
+
+        sendMessage(type, data = {}) {
+            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                const message = { type, ...data };
+                this.socket.send(JSON.stringify(message));
+            } else {
+                console.warn('WebSocket not connected, cannot send message:', type);
+            }
+        },
+
+        sendPing() {
+            this.sendMessage('ping', { timestamp: Date.now() });
+        },
+
+        sendTypingStatus(isTyping) {
+            this.sendMessage('user_typing', { is_typing: isTyping });
+        },
+
+        sendCursorPosition(position) {
+            this.sendMessage('cursor_position', { position });
+        },
+
+        scheduleReconnect() {
+            if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                const delay = this.reconnectInterval * Math.pow(2, this.reconnectAttempts);
+                console.log(`Scheduling reconnect in ${delay}ms (attempt ${this.reconnectAttempts + 1})`);
+                
+                setTimeout(() => {
+                    this.reconnectAttempts++;
+                    this.connect();
+                }, delay);
+            } else {
+                console.error('Max reconnection attempts reached');
+                this.connectionState = 'error';
+            }
+        },
+
+        showNotification(message, type = 'info', duration = 3000) {
+            // Use existing notification system
+            if (window.DocumentApp && window.DocumentApp.showMessage) {
+                window.DocumentApp.showMessage(message, type, duration);
+            }
+        },
+
+        getConnectionStatusText() {
+            switch (this.connectionState) {
+                case 'connected':
+                    return 'Connected';
+                case 'connecting':
+                    return 'Connecting...';
+                case 'disconnected':
+                    return 'Disconnected';
+                case 'error':
+                    return 'Connection Error';
+                default:
+                    return 'Unknown';
+            }
+        },
+
+        getConnectionStatusClass() {
+            switch (this.connectionState) {
+                case 'connected':
+                    return 'text-success';
+                case 'connecting':
+                    return 'text-warning';
+                case 'disconnected':
+                case 'error':
+                    return 'text-danger';
+                default:
+                    return 'text-secondary';
+            }
+        },
+
+        getActiveUsersText() {
+            if (this.activeUsers.length === 0) {
+                return 'You are the only one here';
+            } else if (this.activeUsers.length === 1) {
+                return `${this.activeUsers[0].username} is also here`;
+            } else {
+                return `${this.activeUsers.length} others are here`;
+            }
+        },
+
+        getTypingUsersText() {
+            if (this.typingUsers.length === 0) {
+                return '';
+            } else if (this.typingUsers.length === 1) {
+                return `${this.typingUsers[0].username} is typing...`;
+            } else {
+                return `${this.typingUsers.length} people are typing...`;
+            }
+        }
+    };
+}
+
 // Export components for use in templates
 window.documentEditor = documentEditor;
 window.documentCard = documentCard;
@@ -320,3 +603,4 @@ window.documentList = documentList;
 window.searchBox = searchBox;
 window.navigationComponent = navigationComponent;
 window.formEnhancer = formEnhancer;
+window.documentWebSocket = documentWebSocket;

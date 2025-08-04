@@ -82,6 +82,9 @@ lock: ## Generate poetry.lock file and install
 	docker-compose exec web poetry install
 
 
+poetry-install: ## Install dependencies
+	docker-compose exec web poetry install
+
 poetry-update: ## Update dependencies
 	docker-compose exec web poetry update
 
@@ -187,6 +190,18 @@ search-test: ## Run search performance tests
 search-reindex-force: ## Force rebuild all search vectors (even existing ones)
 	@echo "🔄 Force rebuilding ALL search vectors..."
 	docker-compose exec web python manage.py update_search_vectors --force
+
+# WebSocket commands
+daphne: ## Run the application with Daphne (WebSocket support)
+	docker-compose exec web poetry run daphne -b 0.0.0.0 -p 8000 document_service.asgi:application
+
+ws-test: ## Test WebSocket connectivity
+	@echo "🔌 Testing WebSocket connectivity..."
+	docker-compose exec web poetry run python manage.py test_websockets
+
+ws-test-all: ## Run all WebSocket tests
+	@echo "🔌 Running comprehensive WebSocket tests..."
+	docker-compose exec web poetry run python manage.py test_websockets --test-type all
 
 # Development utilities
 show-urls: ## Show all Django URL patterns

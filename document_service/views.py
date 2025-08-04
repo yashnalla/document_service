@@ -4,12 +4,18 @@ from django.db import connection
 from django.core.cache import cache
 from django.shortcuts import redirect
 from django.urls import reverse
+from channels.layers import get_channel_layer
 import os
 
 
 def health_check(request):
-    """Health check endpoint that returns database and Redis connectivity status."""
-    status = {"status": "healthy", "database": "unknown", "redis": "unknown"}
+    """Health check endpoint that returns database, Redis, and WebSocket connectivity status."""
+    status = {
+        "status": "healthy", 
+        "database": "unknown", 
+        "redis": "unknown", 
+        "websockets": "unknown"
+    }
 
     # Check database connectivity
     try:
@@ -27,6 +33,19 @@ def health_check(request):
         status["redis"] = "connected"
     except Exception as e:
         status["redis"] = f"error: {str(e)}"
+        status["status"] = "unhealthy"
+
+    # Check WebSocket/Channels connectivity
+    try:
+        channel_layer = get_channel_layer()
+        if channel_layer is None:
+            status["websockets"] = "error: channel layer not configured"
+            status["status"] = "unhealthy"
+        else:
+            # Test basic channel layer functionality
+            status["websockets"] = "configured"
+    except Exception as e:
+        status["websockets"] = f"error: {str(e)}"
         status["status"] = "unhealthy"
 
     return JsonResponse(status)

@@ -226,8 +226,8 @@ class TestDocumentWebDetailView:
         assert 'documents/detail.html' in [t.name for t in response.templates]
         assert response.context['document'] == document
     
-    def test_detail_view_other_user_document_404(self, user):
-        """Test that users can't access other users' documents"""
+    def test_detail_view_other_user_document_accessible(self, user):
+        """Test that users can access other users' documents for collaboration"""
         other_user = User.objects.create_user(username='other', password='pass')
         document = Document.objects.create(
             title='Other User Document',
@@ -241,7 +241,10 @@ class TestDocumentWebDetailView:
         url = reverse('document_detail', kwargs={'pk': document.pk})
         response = client.get(url)
         
-        assert response.status_code == 404
+        # Should be accessible for collaboration
+        assert response.status_code == 200
+        assert 'documents/detail.html' in [t.name for t in response.templates]
+        assert response.context['document'] == document
     
     def test_detail_view_post_update_document(self, user):
         """Test POST request to update document"""

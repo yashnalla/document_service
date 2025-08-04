@@ -4,7 +4,7 @@
 {% block title %}{{ document.title }} - Document Service{% endblock %}
 
 {% block content %}
-<div x-data="documentEditor()" x-init="init()">
+<div x-data="{ editor: documentEditor(), websocket: documentWebSocket() }" x-init="editor.init(); websocket.init()">
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <nav aria-label="breadcrumb">
@@ -19,25 +19,40 @@
         </nav>
         
         <div class="d-flex align-items-center">
+            <!-- WebSocket Connection Status -->
+            <div class="me-3">
+                <span class="badge bg-light text-dark border" :class="websocket.getConnectionStatusClass()">
+                    <span x-show="websocket.connectionState === 'connected'">🟢</span>
+                    <span x-show="websocket.connectionState === 'connecting'">🟡</span>
+                    <span x-show="websocket.connectionState === 'disconnected' || websocket.connectionState === 'error'">🔴</span>
+                    <span x-text="websocket.getConnectionStatusText()"></span>
+                </span>
+            </div>
+            
+            <!-- User Presence -->
+            <div class="me-3" x-show="websocket.connectionState === 'connected'">
+                <small class="text-muted" x-text="websocket.getActiveUsersText()"></small>
+            </div>
+            
             <!-- Save Status -->
             <div class="me-3">
-                <span x-show="saving" class="badge bg-warning">
+                <span x-show="editor.saving" class="badge bg-warning">
                     <span class="spinner-border spinner-border-sm me-1" role="status"></span>
                     Saving...
                 </span>
-                <span x-show="!saving && !isDirty" class="badge bg-success">
+                <span x-show="!editor.saving && !editor.isDirty" class="badge bg-success">
                     ✓ Saved
                 </span>
-                <span x-show="!saving && isDirty" class="badge bg-secondary">
+                <span x-show="!editor.saving && editor.isDirty" class="badge bg-secondary">
                     Unsaved changes
                 </span>
             </div>
             
             <!-- Actions -->
             <div class="btn-group">
-                <button type="button" class="btn btn-outline-primary" @click="save()" :disabled="saving">
-                    <span x-show="!saving">💾 Save</span>
-                    <span x-show="saving">
+                <button type="button" class="btn btn-outline-primary" @click="editor.save()" :disabled="editor.saving">
+                    <span x-show="!editor.saving">💾 Save</span>
+                    <span x-show="editor.saving">
                         <span class="spinner-border spinner-border-sm me-1" role="status"></span>
                         Saving...
                     </span>
@@ -49,7 +64,7 @@
     <!-- Document Editor -->
     <div class="card">
         <div class="card-body">
-            <form @submit.prevent="save()">
+            <form @submit.prevent="editor.save()">
                 {% csrf_token %}
                 
                 <!-- Title (Read-only) -->
@@ -68,9 +83,16 @@
                               id="content" 
                               name="content"
                               rows="20"
-                              x-model="content"
-                              @input="markDirty()"
+                              x-model="editor.content"
+                              @input="editor.markDirty(); websocket.sendTypingStatus(true)"
+                              @focus="websocket.sendTypingStatus(true)"
+                              @blur="websocket.sendTypingStatus(false)"
                               placeholder="Start typing your document content..."></textarea>
+                    
+                    <!-- Typing Indicators -->
+                    <div class="mt-2" x-show="websocket.getTypingUsersText()">
+                        <small class="text-muted fst-italic" x-text="websocket.getTypingUsersText()"></small>
+                    </div>
                 </div>
             </form>
         </div>

@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "crispy_forms",
     "crispy_bootstrap5",
+    "channels",
     "documents",
 ]
 
@@ -56,6 +57,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "document_service.wsgi.application"
+ASGI_APPLICATION = "document_service.asgi.application"
 
 DATABASES = {
     "default": dj_database_url.config(
@@ -98,6 +100,16 @@ CACHES = {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
         "LOCATION": os.getenv("REDIS_URL", "redis://redis:6379/0"),
     }
+}
+
+# Channels Configuration (using existing Redis instance)
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("redis", 6379)],
+        },
+    },
 }
 
 # Django REST Framework Configuration
@@ -183,6 +195,16 @@ LOGGING = {
             'propagate': False,
         },
         'documents.api_client': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'documents.consumers': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'channels': {
             'handlers': ['console'],
             'level': 'INFO',
             'propagate': False,

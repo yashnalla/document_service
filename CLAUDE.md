@@ -29,6 +29,11 @@ make logs         # View logs
 - `make search-reindex` - Rebuild search vectors for all documents
 - `make search-test` - Run search performance tests with detailed analysis
 
+**WebSocket functionality:**
+- `make ws-test` - Test WebSocket connectivity
+- `make ws-test-all` - Run comprehensive WebSocket tests
+- `make daphne` - Run application with Daphne server (WebSocket support)
+
 **Docker management:**
 - `make build` - Build containers
 - `make down` - Stop containers
@@ -38,7 +43,7 @@ make logs         # View logs
 - `make dev-reset` - Reset entire environment
 
 **Poetry dependency management:**
-- `make poetry-lock` - Generate poetry.lock file
+- `make lock` - Generate poetry.lock file and install dependencies
 - `make poetry-install` - Install dependencies
 - `make poetry-update` - Update dependencies
 - `make poetry-show` - Show installed packages
@@ -52,7 +57,7 @@ docker-compose exec web poetry run pytest path/to/test_file.py::test_function_na
 
 ### Multi-Service Architecture
 The application runs as a multi-container setup with service isolation and dependency management:
-- **web**: Django application server (port 8000) - Main application with both API and web interfaces
+- **web**: Django application server (port 8000) - Main application with API, web interfaces, and WebSocket support via Daphne ASGI server
 - **postgres**: PostgreSQL 15 database (port 5432) - Primary data storage with ACID compliance
 - **redis**: Redis 7 cache (port 6379) - High-performance caching and session storage
 
@@ -61,6 +66,37 @@ The application runs as a multi-container setup with service isolation and depen
 - Automatic service discovery via Docker Compose networking
 - Health check endpoints for monitoring service connectivity
 - Volume persistence for postgres data (`postgres_data` volume)
+
+### WebSocket Infrastructure for Real-Time Collaboration
+The application includes comprehensive WebSocket support using Django Channels for real-time document collaboration:
+
+**WebSocket Architecture:**
+- **Django Channels**: ASGI application with WebSocket routing via Daphne server
+- **Redis Channel Layer**: Message broadcasting using existing Redis instance
+- **Room-based Communication**: Document-specific rooms for isolated collaboration
+
+**WebSocket Features:**
+- **User Presence Tracking**: Real-time display of active users per document
+- **Typing Indicators**: Live typing status for collaborative awareness  
+- **Connection Resilience**: Auto-reconnect with exponential backoff
+- **Health Monitoring**: WebSocket connectivity included in health checks
+
+**WebSocket Consumer (`documents/consumers.py`):**
+- Handles WebSocket lifecycle: connect, disconnect, receive
+- User authentication and document access validation
+- Message types: presence updates, typing indicators, cursor position (future)
+- Redis-based presence tracking with TTL
+
+**Frontend Integration:**
+- `documentWebSocket()` Alpine.js component for connection management
+- Visual connection status indicators (🟢 Connected, 🟡 Connecting, 🔴 Disconnected)
+- User presence display ("user1 is also here")
+- Typing indicators below document content
+
+**WebSocket Testing:**
+- Management command: `python manage.py test_websockets`
+- Comprehensive test suite: `documents/tests/test_websockets.py`
+- Connection, authentication, presence, and messaging tests
 
 ### Service Layer Architecture
 The application implements a comprehensive service layer pattern for business logic centralization:
@@ -300,24 +336,100 @@ The application implements enterprise-grade full-text search using PostgreSQL's 
 - **Connection**: Via REDIS_URL environment variable
 - **Usage**: General purpose caching, session storage ready
 
-## Health Monitoring
+## Service State Management
 
-The application provides comprehensive health monitoring capabilities:
+The application implements comprehensive service state management for reliable distributed operations:
+
+### WebSocket Connection State Management
+
+**Connection States (`static/js/app.js - documentWebSocket`):**
+- **disconnected**: Initial state or after connection loss
+- **connecting**: Active connection attempt in progress
+- **connected**: Successfully connected and ready for messaging
+- **error**: Connection failed or encountered unrecoverable error
+
+**State Transitions:**
+- **Automatic reconnection**: Exponential backoff with max 5 attempts
+- **State persistence**: Connection state tracked in Alpine.js reactive component
+- **Visual indicators**: Real-time UI updates based on connection state (🟢 Connected, 🟡 Connecting, 🔴 Disconnected)
+- **Error recovery**: Graceful degradation with user notifications
+
+**Connection Resilience Features:**
+- **Ping/Pong heartbeat**: 30-second intervals to detect stale connections
+- **Reconnect strategy**: Exponential backoff (1s, 2s, 4s, 8s, 16s)
+- **Clean disconnection**: Proper cleanup on page unload
+- **Event-driven architecture**: State changes trigger UI updates automatically
+
+### Redis-Based Presence State
+
+**User Presence Tracking (`documents/consumers.py`):**
+- **Presence keys**: `presence:document:{document_id}:{user_id}` pattern
+- **TTL management**: 5-minute timeout for automatic cleanup
+- **State storage**: Username, user_id, and timestamp in Redis
+- **Atomic operations**: Redis-based state updates for consistency
+
+**Presence State Operations:**
+- `add_user_presence()`: Registers user as active in document
+- `remove_user_presence()`: Removes user from active list
+- `get_active_users()`: Retrieves all active users for document
+- `broadcast_presence_update()`: Notifies all clients of state changes
+
+### Service Health State
 
 **Health Check Endpoint (`/health/`):**
 - **Database connectivity**: Tests PostgreSQL connection with SELECT 1 query
 - **Cache connectivity**: Tests Redis connection with set/get operations
+- **WebSocket readiness**: Verifies Django Channels configuration
 - **Service status aggregation**: Returns overall "healthy"/"unhealthy" status
 - **Error reporting**: Detailed error messages for failed service connections
 - **JSON response format**: Structured response for monitoring systems
 
+**Health State Response Structure:**
+```json
+{
+    "status": "healthy|unhealthy",
+    "database": "connected|error: <details>",
+    "redis": "connected|error: <details>",
+    "websockets": "configured|error: <details>"
+}
+```
+
 **Health Check Implementation (`document_service/views.py`):**
 - **Exception handling**: Graceful handling of service connection failures  
 - **Connection testing**: Uses Django database cursor and cache operations
+- **Channel layer verification**: Checks WebSocket infrastructure availability
 - **Status determination**: Marks overall status as unhealthy if any service fails
 - **Monitoring integration**: Compatible with Docker health checks and external monitoring
 
-**Makefile Health Commands:**
+### Transaction State Management
+
+**Service Layer Transactions (`documents/services.py`):**
+- **Atomic operations**: All document modifications wrapped in `transaction.atomic()`
+- **Rollback on failure**: Automatic state restoration on exceptions
+- **Version control**: Optimistic locking prevents state conflicts
+- **Change tracking**: Every state change recorded in DocumentChange model
+
+**Transaction Boundaries:**
+- **Document creation**: Atomic creation with initial change record
+- **Document updates**: Version increment + change record in single transaction
+- **OT operations**: Text transformation + version update + audit trail atomically
+- **Search vector updates**: Document save triggers automatic search index update
+
+### HTMX Request State
+
+**Loading State Management (`static/js/app.js`):**
+- **Request lifecycle**: beforeRequest → during → afterRequest states
+- **Visual feedback**: Loading spinners and disabled controls during requests
+- **Error states**: Automatic error message display on failures
+- **State restoration**: Original UI state restored after request completion
+
+**HTMX State Features:**
+- **Data attributes**: `data-loading-text` for custom loading messages
+- **Automatic cleanup**: State restoration on request completion
+- **Error boundaries**: Global error handler for failed requests
+- **Progress indication**: Visual feedback for long-running operations
+
+### Makefile Health Commands
 - `make health`: Quick health check via curl with JSON formatting
 - `make ps`: Container status and running processes
 - `make logs`: Service logs for troubleshooting
@@ -581,7 +693,6 @@ The web interface provides a complete document management system with responsive
 - `documents/create/` - Document creation form
 - `documents/search/` - AJAX search endpoint for HTMX live search
 - `documents/<uuid:pk>/` - Document detail view with editing
-- `documents/<uuid:pk>/autosave/` - AJAX auto-save endpoint
 
 ## Development Workflow
 
@@ -711,3 +822,10 @@ The testing strategy emphasizes comprehensive coverage with realistic scenarios:
 - **User attribution**: All changes linked to specific users (including anonymous)
 - **Version transitions**: Tracks from/to version for each change
 - **Operation metadata**: Detailed information about each change operation
+
+**WebSocket Real-Time Collaboration:**
+- **ASGI Server**: Application runs on Daphne for WebSocket support (not Django runserver)
+- **Connection Management**: Auto-reconnect with exponential backoff for network resilience
+- **Presence System**: Redis-based user presence tracking with automatic cleanup
+- **Message Broadcasting**: Channel layers enable room-based real-time communication
+- **Testing Infrastructure**: Dedicated WebSocket tests and management commands

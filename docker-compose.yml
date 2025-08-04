@@ -10,7 +10,7 @@ services:
     depends_on:
       - postgres
       - redis
-    command: poetry run python manage.py runserver 0.0.0.0:8000
+    command: poetry run daphne -b 0.0.0.0 -p 8000 document_service.asgi:application
 
   postgres:
     image: postgres:15
