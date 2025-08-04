@@ -145,13 +145,14 @@ def test_url_patterns_include():
     """Test that URL patterns are properly included."""
     from documents.urls import urlpatterns
 
-    # Should have 3 patterns: web routes only (API moved to api/urls.py)
-    assert len(urlpatterns) == 3
+    # Should have 4 patterns: web routes only (API moved to api/urls.py)
+    assert len(urlpatterns) == 4
 
     # Check that web routes are present
     pattern_strings = [str(pattern.pattern) for pattern in urlpatterns]
     assert "" in pattern_strings  # document_list
     assert "create/" in pattern_strings  # document_create
+    assert "search/" in pattern_strings  # document_search_ajax
 
 
 @pytest.mark.django_db

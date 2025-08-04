@@ -3,6 +3,8 @@ import hashlib
 import json
 from django.db import models
 from django.contrib.auth.models import User
+from django.contrib.postgres.search import SearchVector, SearchVectorField
+from django.contrib.postgres.indexes import GinIndex
 from django.urls import reverse
 
 
@@ -23,9 +25,13 @@ class Document(models.Model):
         null=True,
         blank=True,
     )
+    search_vector = SearchVectorField(null=True, blank=True)
 
     class Meta:
         ordering = ["-updated_at"]
+        indexes = [
+            GinIndex(fields=['search_vector']),
+        ]
 
     def __str__(self):
         return self.title
@@ -72,13 +78,36 @@ class Document(models.Model):
         
         return extract_text_from_nodes(root_children).strip()
 
+    def update_search_vector(self):
+        """Update the search vector with title and content text."""
+        content_text = self.get_plain_text()
+        
+        # Create search vector with weighted terms:
+        # Title has weight 'A' (highest priority)
+        # Content text has weight 'B' (medium priority)
+        self.search_vector = (
+            SearchVector('title', weight='A') +
+            SearchVector(models.Value(content_text), weight='B')
+        )
+
     def save(self, *args, **kwargs):
+        should_update_search = False
+        
         if self.pk:
             existing = Document.objects.filter(pk=self.pk).first()
             if existing and (
                 existing.title != self.title or existing.content != self.content
             ):
                 self.version += 1
+                should_update_search = True
+        else:
+            # New document
+            should_update_search = True
+        
+        # Update search vector if title or content changed
+        if should_update_search:
+            self.update_search_vector()
+            
         super().save(*args, **kwargs)
 
     def get_absolute_url(self):

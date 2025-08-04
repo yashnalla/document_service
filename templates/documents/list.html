@@ -4,6 +4,69 @@
 {% block title %}My Documents - Document Service{% endblock %}
 
 {% block content %}
+<!-- Search Interface -->
+<div class="card mb-4" x-data="searchBox()">
+    <div class="card-body">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <div class="input-group">
+                    <span class="input-group-text">
+                        <i class="bi bi-search"></i>
+                    </span>
+                    <input 
+                        type="text" 
+                        class="form-control" 
+                        id="search-input"
+                        name="q"
+                        placeholder="Search documents by title or content..."
+                        x-model="searchQuery"
+                        hx-get="{% url 'document_search_ajax' %}"
+                        hx-trigger="keyup delay:300ms, search"
+                        hx-target="#document-list"
+                        hx-indicator="#search-loading"
+                        hx-include="#search-input, [name='user_only']"
+                        autocomplete="off"
+                    >
+                    <button 
+                        class="btn btn-outline-secondary" 
+                        type="button"
+                        @click="clearSearch()"
+                        x-show="searchQuery"
+                        title="Clear search"
+                    >
+                        <i class="bi bi-x-circle"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-4 mt-2 mt-md-0">
+                <div class="form-check form-switch">
+                    <input 
+                        class="form-check-input" 
+                        type="checkbox" 
+                        id="user-only-toggle"
+                        name="user_only"
+                        value="true"
+                        checked
+                    >
+                    <label class="form-check-label" for="user-only-toggle">
+                        My Documents Only
+                    </label>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Search Status -->
+        <div class="mt-2 d-flex align-items-center">
+            <div id="search-loading" class="htmx-indicator">
+                <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                    <span class="visually-hidden">Searching...</span>
+                </div>
+                <small class="text-muted">Searching...</small>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1>My Documents</h1>
     <a href="{% url 'document_create' %}" class="btn btn-primary">
@@ -11,55 +74,58 @@
     </a>
 </div>
 
-{% if documents %}
-    <div class="row" id="documents-container">
-        {% for document in documents %}
-            {% include 'documents/partials/document_card.html' with document=document %}
-        {% endfor %}
-    </div>
-    
-    <!-- Pagination -->
-    {% if is_paginated %}
-        <nav aria-label="Page navigation" class="mt-4">
-            <ul class="pagination justify-content-center">
-                {% if page_obj.has_previous %}
-                    <li class="page-item">
-                        <a class="page-link" href="?page=1">First</a>
-                    </li>
-                    <li class="page-item">
-                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
-                    </li>
-                {% endif %}
-                
-                <li class="page-item active">
-                    <span class="page-link">
-                        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
-                    </span>
-                </li>
-                
-                {% if page_obj.has_next %}
-                    <li class="page-item">
-                        <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
-                    </li>
-                    <li class="page-item">
-                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Last</a>
-                    </li>
-                {% endif %}
-            </ul>
-        </nav>
-    {% endif %}
-{% else %}
-    <!-- Empty State -->
-    <div class="text-center py-5">
-        <div class="mb-4">
-            <i class="display-1 text-muted">📄</i>
+<!-- Document List (HTMX Target) -->
+<div id="document-list">
+    {% if documents %}
+        <div class="row" id="documents-container">
+            {% for document in documents %}
+                {% include 'documents/partials/document_card.html' with document=document %}
+            {% endfor %}
         </div>
-        <h3 class="text-muted">No documents yet</h3>
-        <p class="text-muted mb-4">Create your first document to get started!</p>
-        <a href="{% url 'document_create' %}" class="btn btn-primary btn-lg">
-            ➕ Create Your First Document
-        </a>
-    </div>
-{% endif %}
+        
+        <!-- Pagination -->
+        {% if is_paginated %}
+            <nav aria-label="Page navigation" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1">First</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                        </li>
+                    {% endif %}
+                    
+                    <li class="page-item active">
+                        <span class="page-link">
+                            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                        </span>
+                    </li>
+                    
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Last</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        {% endif %}
+    {% else %}
+        <!-- Empty State -->
+        <div class="text-center py-5">
+            <div class="mb-4">
+                <i class="display-1 text-muted">📄</i>
+            </div>
+            <h3 class="text-muted">No documents yet</h3>
+            <p class="text-muted mb-4">Create your first document to get started!</p>
+            <a href="{% url 'document_create' %}" class="btn btn-primary btn-lg">
+                ➕ Create Your First Document
+            </a>
+        </div>
+    {% endif %}
+</div>
 
 {% endblock %}

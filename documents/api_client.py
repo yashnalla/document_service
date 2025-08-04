@@ -439,6 +439,50 @@ class DocumentAPIClient:
             raise APIAuthenticationError("Access denied to document")
         else:
             raise APIClientError(f"Failed to preview changes: {response_data.get('error', 'Unknown error')}")
+    
+    def search_documents(
+        self, 
+        query: str,
+        limit: int = 20,
+        user_only: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Search documents using the API.
+        
+        Args:
+            query: Search query string
+            limit: Maximum number of results to return
+            user_only: If True, search only user's documents
+            
+        Returns:
+            Search results with metadata
+            
+        Raises:
+            APIClientError: If search fails
+        """
+        if not query or not query.strip():
+            raise APIClientError("Search query cannot be empty")
+        
+        params = {
+            "q": query.strip(),
+            "limit": str(limit),
+            "user_only": "true" if user_only else "false"
+        }
+        
+        status_code, response_data = self._make_request(
+            "GET", 
+            "/documents/search/", 
+            params=params
+        )
+        
+        if status_code == 200:
+            return response_data
+        elif status_code == 400:
+            raise APIValidationError(f"Search validation error: {response_data.get('error', 'Invalid search parameters')}")
+        elif status_code == 403:
+            raise APIAuthenticationError("Access denied for search")
+        else:
+            raise APIClientError(f"Search failed: {response_data.get('error', 'Unknown error')}")
 
 
 class APIClientMixin:

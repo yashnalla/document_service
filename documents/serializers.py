@@ -231,3 +231,44 @@ class DocumentChangeHistorySerializer(serializers.ModelSerializer):
 
     def get_applied_by_name(self, obj):
         return obj.applied_by.get_full_name() or obj.applied_by.username
+
+
+class DocumentSearchResultSerializer(serializers.ModelSerializer):
+    """Serializer for document search results with lightweight data and snippets."""
+    
+    created_by_name = serializers.SerializerMethodField()
+    content_snippet = serializers.SerializerMethodField()
+    search_rank = serializers.FloatField(source='rank', read_only=True)
+    
+    class Meta:
+        model = Document
+        fields = [
+            "id",
+            "title", 
+            "created_by_name",
+            "updated_at",
+            "content_snippet",
+            "search_rank",
+            "version"
+        ]
+        read_only_fields = ["id", "title", "updated_at", "version"]
+    
+    def get_created_by_name(self, obj):
+        """Get the full name or username of the document creator."""
+        return obj.created_by.get_full_name() or obj.created_by.username
+    
+    def get_content_snippet(self, obj):
+        """Extract a content snippet for search results (first 200 characters)."""
+        plain_text = obj.get_plain_text()
+        if len(plain_text) <= 200:
+            return plain_text
+        
+        # Find a good breaking point near 200 characters
+        snippet = plain_text[:200]
+        
+        # Try to break at word boundary
+        last_space = snippet.rfind(' ')
+        if last_space > 150:  # Only break at word if it's not too short
+            snippet = snippet[:last_space]
+        
+        return snippet + "..." if len(plain_text) > len(snippet) else snippet

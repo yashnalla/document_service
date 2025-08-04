@@ -171,6 +171,23 @@ redis-flush: ## Flush all Redis data (WARNING: clears cache)
 	@echo "Are you sure? [y/N] " && read ans && [ $${ans:-N} = y ]
 	docker-compose exec redis redis-cli flushall
 
+# Search commands
+search-reindex: ## Rebuild search vectors for all documents
+	@echo "🔍 Rebuilding search vectors for all documents..."
+	docker-compose exec web python manage.py update_search_vectors
+
+search-stats: ## Show search index statistics and performance
+	@echo "📊 Displaying search statistics..."
+	docker-compose exec web python manage.py search_stats
+
+search-test: ## Run search performance tests
+	@echo "⚡ Running search performance tests..."
+	docker-compose exec web python manage.py search_stats --test-search --verbose
+
+search-reindex-force: ## Force rebuild all search vectors (even existing ones)
+	@echo "🔄 Force rebuilding ALL search vectors..."
+	docker-compose exec web python manage.py update_search_vectors --force
+
 # Development utilities
 show-urls: ## Show all Django URL patterns
 	docker-compose exec web python manage.py show_urls

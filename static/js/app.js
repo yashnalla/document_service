@@ -136,6 +136,64 @@ function documentCard() {
     };
 }
 
+// Search Box Component
+function searchBox() {
+    return {
+        searchQuery: '',
+        isSearching: false,
+        resultCount: 0,
+        searchTime: 0,
+        
+        init() {
+            // Focus search input on page load if not on mobile
+            if (!this.isMobile()) {
+                this.$nextTick(() => {
+                    const searchInput = this.$el.querySelector('#search-input');
+                    if (searchInput) {
+                        searchInput.focus();
+                    }
+                });
+            }
+            
+            // Keyboard shortcuts
+            document.addEventListener('keydown', (e) => {
+                // Ctrl+K or Cmd+K to focus search
+                if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                    e.preventDefault();
+                    this.focusSearch();
+                }
+                
+                // Escape to clear search
+                if (e.key === 'Escape' && this.searchQuery) {
+                    this.clearSearch();
+                }
+            });
+        },
+        
+        focusSearch() {
+            const searchInput = document.getElementById('search-input');
+            if (searchInput) {
+                searchInput.focus();
+                searchInput.select();
+            }
+        },
+        
+        clearSearch() {
+            this.searchQuery = '';
+            
+            // Trigger HTMX to reload normal document list
+            const searchInput = document.getElementById('search-input');
+            if (searchInput) {
+                searchInput.dispatchEvent(new Event('input'));
+            }
+        },
+        
+        isMobile() {
+            return window.innerWidth < 768;
+        }
+    };
+}
+
 // Document List Component
 function documentList() {
     return {
@@ -143,24 +201,13 @@ function documentList() {
         searchQuery: '',
         
         init() {
-            // Initialize search functionality
-            this.initSearch();
+            // Initialize any document list specific functionality
+            this.setupInfiniteScroll();
         },
         
-        initSearch() {
-            // Debounced search
-            let searchTimeout;
-            this.$watch('searchQuery', (value) => {
-                clearTimeout(searchTimeout);
-                searchTimeout = setTimeout(() => {
-                    this.performSearch(value);
-                }, 300);
-            });
-        },
-        
-        async performSearch(query) {
-            // This would be implemented if we add search functionality
-            console.log('Searching for:', query);
+        setupInfiniteScroll() {
+            // Future enhancement: infinite scroll for large document lists
+            // For now, we use pagination
         }
     };
 }
@@ -270,5 +317,6 @@ document.addEventListener('DOMContentLoaded', function() {
 window.documentEditor = documentEditor;
 window.documentCard = documentCard;
 window.documentList = documentList;
+window.searchBox = searchBox;
 window.navigationComponent = navigationComponent;
 window.formEnhancer = formEnhancer;

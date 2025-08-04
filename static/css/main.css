@@ -267,11 +267,231 @@
     }
 }
 
+/* Search Interface Styles */
+.search-interface {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 0.5rem;
+    transition: all 0.3s ease;
+}
+
+.search-interface:focus-within {
+    box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+    background: #ffffff;
+}
+
+#search-input {
+    border: none;
+    box-shadow: none;
+    background: transparent;
+    font-size: 1rem;
+}
+
+#search-input:focus {
+    border: none;
+    box-shadow: none;
+    background: transparent;
+}
+
+#search-input::placeholder {
+    color: #6c757d;
+    font-style: italic;
+}
+
+.input-group-text {
+    background: transparent;
+    border: none;
+    color: #6c757d;
+}
+
+/* Search Loading Indicator */
+.htmx-indicator {
+    display: none;
+}
+
+.htmx-request .htmx-indicator {
+    display: flex;
+    align-items: center;
+}
+
+/* Search Results Styles */
+.search-result-card {
+    border-left: 3px solid #007bff;
+    transition: all 0.2s ease;
+}
+
+.search-result-card:hover {
+    border-left-color: #0056b3;
+    transform: translateY(-1px);
+}
+
+.search-snippet {
+    background-color: #f8f9fa;
+    border-radius: 0.25rem;
+    padding: 0.5rem;
+    line-height: 1.4;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Search Result Highlighting */
+.search-highlight {
+    background-color: #fff3cd;
+    padding: 0.1rem 0.2rem;
+    border-radius: 0.2rem;
+    font-weight: 600;
+    color: #856404;
+}
+
+/* Search Rank Badge */
+.badge.bg-success {
+    font-size: 0.7rem;
+    font-weight: 500;
+}
+
+/* Search Toggle Switch */
+.form-check-input:checked {
+    background-color: #007bff;
+    border-color: #007bff;
+}
+
+.form-check-label {
+    font-weight: 500;
+    color: #495057;
+    cursor: pointer;
+}
+
+/* Search Status and Metadata */
+.search-metadata {
+    background-color: #e9ecef;
+    border-radius: 0.5rem;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+}
+
+.search-metadata h5 {
+    margin: 0;
+    color: #495057;
+}
+
+.search-metadata small {
+    color: #6c757d;
+}
+
+/* Empty Search State */
+.search-empty-state {
+    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+    border: 2px dashed #dee2e6;
+    border-radius: 1rem;
+    padding: 3rem 2rem;
+    text-align: center;
+}
+
+.search-empty-state .bi {
+    color: #dee2e6;
+    margin-bottom: 1rem;
+}
+
+/* Search Animation */
+@keyframes searchPulse {
+    0% { opacity: 0.6; }
+    50% { opacity: 1; }
+    100% { opacity: 0.6; }
+}
+
+.searching {
+    animation: searchPulse 1.5s ease-in-out infinite;
+}
+
+/* Keyboard Shortcut Hint */
+.search-hint {
+    position: relative;
+}
+
+.search-hint::after {
+    content: "Ctrl+K";
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #e9ecef;
+    color: #6c757d;
+    font-size: 0.75rem;
+    padding: 0.2rem 0.4rem;
+    border-radius: 0.25rem;
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.search-hint:focus-within::after {
+    display: none;
+}
+
+/* Clear Search Button */
+.btn-clear-search {
+    border-left: 1px solid #dee2e6;
+    background: transparent;
+    color: #6c757d;
+    transition: all 0.2s ease;
+}
+
+.btn-clear-search:hover {
+    background: #f8f9fa;
+    color: #dc3545;
+}
+
+/* Responsive Search Adjustments */
+@media (max-width: 768px) {
+    .search-interface {
+        margin-bottom: 1rem;
+    }
+    
+    .search-metadata {
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .search-metadata h5 {
+        font-size: 1rem;
+    }
+    
+    .search-hint::after {
+        display: none;
+    }
+    
+    .search-result-card {
+        margin-bottom: 1rem;
+    }
+    
+    .search-snippet {
+        font-size: 0.875rem;
+    }
+}
+
+/* Search Focus States for Accessibility */
+.search-interface:focus-within {
+    outline: 2px solid #007bff;
+    outline-offset: 2px;
+}
+
+.btn-clear-search:focus {
+    outline: 2px solid #007bff;
+    outline-offset: 2px;
+}
+
+/* Search Result Hover Effects */
+.search-result-card .card-title a {
+    transition: color 0.2s ease;
+}
+
+.search-result-card:hover .card-title a {
+    color: #0056b3;
+    text-decoration: underline;
+}
+
 /* Print styles */
 @media print {
     .navbar,
     .btn,
-    .save-status {
+    .save-status,
+    .search-interface {
         display: none !important;
     }
     

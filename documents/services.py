@@ -1,11 +1,14 @@
 from typing import Dict, Any, List, Optional
 from django.contrib.auth.models import User
+from django.contrib.postgres.search import SearchQuery, SearchRank
 from django.db import transaction
+from django.db.models import Q
 from .models import Document, DocumentChange
 from .utils import create_basic_lexical_content, update_lexical_content_with_text
 from .exceptions import VersionConflictError, InvalidChangeError
 from .operational_transforms import OTOperation, OTOperationSet, OperationType
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -396,3 +399,107 @@ class DocumentService:
         if limit:
             queryset = queryset[:limit]
         return queryset
+
+    @staticmethod
+    def search_documents(
+        query: str, 
+        user: Optional[User] = None, 
+        limit: int = 20,
+        user_only: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Search documents using PostgreSQL full-text search.
+        
+        Args:
+            query: Search query string
+            user: User performing the search (for permission filtering)
+            limit: Maximum number of results to return
+            user_only: If True, search only the user's documents
+            
+        Returns:
+            Dict containing search results and metadata
+        """
+        start_time = time.time()
+        
+        # Handle empty query
+        if not query or not query.strip():
+            return {
+                "documents": Document.objects.none(),
+                "query": query,
+                "total_results": 0,
+                "search_time": 0,
+                "user_only": user_only
+            }
+        
+        query = query.strip()
+        
+        # Create search query and ranking
+        search_query = SearchQuery(query)
+        
+        # Base queryset with search filtering and ranking
+        queryset = Document.objects.annotate(
+            rank=SearchRank('search_vector', search_query)
+        ).filter(
+            search_vector=search_query
+        ).filter(
+            rank__gt=0  # Only include documents with positive relevance
+        ).order_by('-rank', '-updated_at')
+        
+        # Apply permission filtering
+        if user_only and user and user.is_authenticated:
+            # Search only user's documents
+            queryset = queryset.filter(created_by=user)
+        elif user and user.is_authenticated:
+            # For now, users can search all documents
+            # In the future, this could be refined for permission-based filtering
+            pass
+        else:
+            # Anonymous users - limit to some public scope or no results
+            # For security, return no results for anonymous users
+            queryset = Document.objects.none()
+        
+        # Apply limit
+        if limit and limit > 0:
+            # Limit to reasonable maximum
+            limit = min(limit, 100)
+            total_count = queryset.count()
+            queryset = queryset[:limit]
+        else:
+            total_count = queryset.count()
+            queryset = queryset[:20]  # Default limit
+        
+        search_time = round((time.time() - start_time) * 1000, 2)  # Convert to milliseconds
+        
+        logger.info(f"Search query '{query}' returned {total_count} results in {search_time}ms")
+        
+        return {
+            "documents": queryset,
+            "query": query,
+            "total_results": total_count,
+            "search_time": search_time,
+            "user_only": user_only
+        }
+
+    @staticmethod
+    def search_user_documents(
+        query: str, 
+        user: User, 
+        limit: int = 20
+    ) -> Dict[str, Any]:
+        """
+        Search only the user's own documents.
+        
+        Args:
+            query: Search query string
+            user: User whose documents to search
+            limit: Maximum number of results to return
+            
+        Returns:
+            Dict containing search results and metadata
+        """
+        return DocumentService.search_documents(
+            query=query,
+            user=user,
+            limit=limit,
+            user_only=True
+        )

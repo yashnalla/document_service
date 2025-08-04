@@ -11,6 +11,8 @@ from django.shortcuts import get_object_or_404, redirect
 from django.contrib import messages
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+from django.views.decorators.http import require_http_methods
+from django.template.loader import render_to_string
 
 logger = logging.getLogger(__name__)
 from .models import Document
@@ -21,6 +23,7 @@ from .serializers import (
     DocumentCreateSerializer,
     DocumentChangeSerializer,
     DocumentChangeHistorySerializer,
+    DocumentSearchResultSerializer,
 )
 from .exceptions import VersionConflictError, InvalidChangeError
 from .api_client import DocumentAPIClient, APIClientError, APIConflictError, APIValidationError
@@ -171,6 +174,69 @@ class DocumentViewSet(viewsets.ModelViewSet):
 
         serializer = DocumentChangeHistorySerializer(changes, many=True)
         return Response(serializer.data)
+
+    @action(detail=False, methods=["get"], url_path="search")
+    def search(self, request):
+        """Search documents using PostgreSQL full-text search."""
+        from .services import DocumentService
+        
+        # Get query parameters
+        query = request.query_params.get('q', '').strip()
+        limit = request.query_params.get('limit', '20')
+        user_only = request.query_params.get('user_only', 'false').lower() == 'true'
+        
+        # Validate query parameter
+        if not query:
+            return Response({
+                "error": "Search query parameter 'q' is required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate and convert limit
+        try:
+            limit = int(limit)
+        except (ValueError, TypeError):
+            limit = 20
+        
+        # Ensure reasonable limits
+        if limit <= 0:
+            limit = 20
+        elif limit > 100:  # Maximum limit
+            limit = 100
+        
+        try:
+            # Perform search using DocumentService
+            search_results = DocumentService.search_documents(
+                query=query,
+                user=request.user,
+                limit=limit,
+                user_only=user_only
+            )
+            
+            # Serialize the results
+            serializer = DocumentSearchResultSerializer(
+                search_results['documents'], 
+                many=True, 
+                context={'request': request}
+            )
+            
+            # Return results with metadata
+            return Response({
+                "results": serializer.data,
+                "meta": {
+                    "query": search_results['query'],
+                    "total_results": search_results['total_results'],
+                    "search_time_ms": search_results['search_time'],
+                    "user_only": search_results['user_only'],
+                    "limit": limit,
+                    "results_count": len(serializer.data)
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Search error: {str(e)}", exc_info=True)
+            return Response({
+                "error": "Search failed due to an internal error"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     # Delete functionality is available through standard ModelViewSet
 
@@ -327,6 +393,122 @@ class DocumentWebCreateView(LoginRequiredMixin, CreateView):
             messages.error(self.request, 'An unexpected error occurred while creating the document')
             return self.form_invalid(form)
 
+
+@require_http_methods(["GET"])
+def document_search_ajax(request):
+    """
+    HTMX endpoint for live document search.
+    
+    This view handles AJAX search requests from the web interface,
+    calls the API search endpoint, and returns rendered HTML for HTMX.
+    """
+    # Only allow authenticated users
+    if not request.user.is_authenticated:
+        return JsonResponse({
+            'error': 'Authentication required'
+        }, status=403)
+    
+    # Get search parameters
+    query = request.GET.get('q', '').strip()
+    user_only = request.GET.get('user_only', 'false').lower() == 'true'
+    limit = 20  # Fixed limit for web interface
+    
+    try:
+        if not query:
+            # Empty query - return empty results
+            context = {
+                'documents': [],
+                'search_query': '',
+                'total_results': 0,
+                'search_time': 0,
+                'user_only': user_only,
+                'is_search': False
+            }
+        else:
+            # Perform search using API client
+            api_client = DocumentAPIClient(request.user)
+            search_results = api_client.search_documents(
+                query=query,
+                limit=limit,
+                user_only=user_only
+            )
+            
+            # Transform API results for template
+            documents = []
+            if 'results' in search_results:
+                for result in search_results['results']:
+                    # Create a document-like object for template compatibility
+                    doc = {
+                        'id': result['id'],
+                        'title': result['title'],
+                        'created_by_name': result['created_by_name'],
+                        'updated_at': result['updated_at'],
+                        'content_snippet': result['content_snippet'],
+                        'search_rank': result.get('search_rank', 0),
+                        'version': result['version']
+                    }
+                    documents.append(doc)
+            
+            # Get metadata
+            meta = search_results.get('meta', {})
+            
+            context = {
+                'documents': documents,
+                'search_query': query,
+                'total_results': meta.get('total_results', 0),
+                'search_time': meta.get('search_time_ms', 0),
+                'user_only': user_only,
+                'is_search': True
+            }
+        
+        # Render the search results template
+        html = render_to_string(
+            'documents/search_results.html', 
+            context, 
+            request=request
+        )
+        
+        return HttpResponse(html)
+        
+    except APIClientError as e:
+        logger.error(f"API client error in search: {str(e)}")
+        context = {
+            'documents': [],
+            'search_query': query,
+            'total_results': 0,
+            'search_time': 0,
+            'user_only': user_only,
+            'is_search': True,
+            'error_message': 'Search temporarily unavailable. Please try again.'
+        }
+        
+        html = render_to_string(
+            'documents/search_results.html', 
+            context, 
+            request=request
+        )
+        
+        return HttpResponse(html)
+        
+    except Exception as e:
+        logger.error(f"Unexpected error in document search: {str(e)}", exc_info=True)
+        context = {
+            'documents': [],
+            'search_query': query,
+            'total_results': 0,
+            'search_time': 0,
+            'user_only': user_only,
+            'is_search': True,
+            'error_message': 'An error occurred while searching. Please try again.'
+        }
+        
+        html = render_to_string(
+            'documents/search_results.html', 
+            context, 
+            request=request
+        )
+        
+        return HttpResponse(html)
 
 
 

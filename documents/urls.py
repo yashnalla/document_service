@@ -7,5 +7,6 @@ urlpatterns = [
     # Web interface routes
     path("", views.DocumentWebListView.as_view(), name="document_list"),
     path("create/", views.DocumentWebCreateView.as_view(), name="document_create"),
+    path("search/", views.document_search_ajax, name="document_search_ajax"),
     path("<uuid:pk>/", views.DocumentWebDetailView.as_view(), name="document_detail"),
 ]

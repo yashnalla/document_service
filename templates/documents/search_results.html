@@ -1,0 +1,157 @@
+{% comment %}
+Search Results Template for HTMX responses
+This template is loaded into the document list area when searching
+{% endcomment %}
+
+{% if error_message %}
+    <!-- Error State -->
+    <div class="alert alert-warning" role="alert">
+        <i class="bi bi-exclamation-triangle"></i>
+        {{ error_message }}
+    </div>
+{% elif is_search and search_query %}
+    <!-- Search Results Header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h5 class="mb-1">
+                Search Results
+                {% if total_results > 0 %}
+                    <span class="badge bg-primary">{{ total_results }}</span>
+                {% endif %}
+            </h5>
+            <small class="text-muted">
+                Found {{ total_results }} result{{ total_results|pluralize }} for "<strong>{{ search_query }}</strong>"
+                {% if search_time > 0 %}
+                    in {{ search_time }}ms
+                {% endif %}
+                {% if user_only %}
+                    <span class="badge bg-secondary ms-1">My Documents</span>
+                {% endif %}
+            </small>
+        </div>
+        <button 
+            class="btn btn-outline-secondary btn-sm"
+            onclick="clearSearch()"
+            title="Clear search and show all documents"
+        >
+            <i class="bi bi-x-circle"></i> Clear
+        </button>
+    </div>
+
+    {% if documents %}
+        <!-- Search Results Grid -->
+        <div class="row">
+            {% for document in documents %}
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card document-card search-result-card h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h6 class="card-title mb-1">
+                                    <a href="{% url 'document_detail' pk=document.id %}" class="text-decoration-none">
+                                        {{ document.title|truncatechars:50 }}
+                                    </a>
+                                </h6>
+                                {% if document.search_rank %}
+                                    <small class="badge bg-success" title="Search relevance score">
+                                        {{ document.search_rank|floatformat:2 }}
+                                    </small>
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Content Snippet -->
+                            {% if document.content_snippet %}
+                                <p class="card-text text-muted small mb-2 search-snippet">
+                                    {{ document.content_snippet|linebreaksbr }}
+                                </p>
+                            {% endif %}
+                            
+                            <!-- Document Metadata -->
+                            <div class="document-metadata">
+                                <small class="text-muted">
+                                    <strong>By:</strong> {{ document.created_by_name }}
+                                </small><br>
+                                <small class="text-muted">
+                                    <strong>Updated:</strong> {{ document.updated_at|date:"M j, Y g:i A" }}
+                                </small><br>
+                                <small class="text-muted">
+                                    <strong>Version:</strong> {{ document.version }}
+                                </small>
+                            </div>
+                        </div>
+                        
+                        <div class="card-footer bg-transparent">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <a href="{% url 'document_detail' pk=document.id %}" class="btn btn-primary btn-sm">
+                                    <i class="bi bi-eye"></i> View
+                                </a>
+                                <small class="text-muted">
+                                    ID: {{ document.id|slice:":8" }}...
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <!-- No Results -->
+        <div class="text-center py-5">
+            <div class="mb-4">
+                <i class="display-1 text-muted bi bi-search"></i>
+            </div>
+            <h4 class="text-muted">No results found</h4>
+            <p class="text-muted mb-4">
+                No documents match your search for "<strong>{{ search_query }}</strong>"
+                {% if user_only %}in your documents{% endif %}.
+            </p>
+            <div class="d-flex justify-content-center gap-2">
+                <button class="btn btn-outline-primary" onclick="clearSearch()">
+                    <i class="bi bi-arrow-left"></i> Show All Documents
+                </button>
+                {% if user_only %}
+                    <button 
+                        class="btn btn-outline-secondary"
+                        onclick="searchAllDocuments('{{ search_query }}')"
+                    >
+                        <i class="bi bi-globe"></i> Search All Documents
+                    </button>
+                {% endif %}
+            </div>
+        </div>
+    {% endif %}
+{% else %}
+    <!-- Default State (No search or empty query) -->
+    <div class="row" id="documents-container">
+        <!-- This will be replaced by the normal document list view -->
+        <div class="col-12 text-center py-4">
+            <div class="text-muted">
+                <i class="bi bi-search display-4"></i>
+                <p class="mt-2">Start typing to search documents...</p>
+            </div>
+        </div>
+    </div>
+{% endif %}
+
+<script>
+// JavaScript functions for search interaction
+function clearSearch() {
+    // Clear search input and reload normal document list
+    const searchInput = document.querySelector('#search-input');
+    if (searchInput) {
+        searchInput.value = '';
+        searchInput.dispatchEvent(new Event('input')); // Trigger HTMX search with empty query
+    }
+}
+
+function searchAllDocuments(query) {
+    // Switch to searching all documents instead of just user's documents
+    const searchInput = document.querySelector('#search-input');
+    const userOnlyToggle = document.querySelector('#user-only-toggle');
+    
+    if (searchInput && userOnlyToggle) {
+        userOnlyToggle.checked = false;
+        searchInput.value = query;
+        searchInput.dispatchEvent(new Event('input')); // Trigger new search
+    }
+}
+</script>
