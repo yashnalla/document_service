@@ -4,7 +4,7 @@ from django.contrib.postgres.search import SearchQuery, SearchRank
 from django.db import transaction
 from django.db.models import Q
 from .models import Document, DocumentChange
-from .utils import create_basic_lexical_content, update_lexical_content_with_text
+# No utility imports needed - working directly with plain text
 from .exceptions import VersionConflictError, InvalidChangeError
 from .operational_transforms import OTOperation, OTOperationSet, OperationType
 import logging
@@ -79,17 +79,15 @@ class DocumentService:
     @staticmethod
     def create_document(
         title: str,
-        content: Optional[Dict[str, Any]] = None,
         content_text: Optional[str] = None,
         user: Optional[User] = None
     ) -> Document:
         """
-        Create a new document with proper content handling and user assignment.
+        Create a new document with plain text content.
         
         Args:
             title: Document title
-            content: Lexical content (if provided, takes precedence over content_text)
-            content_text: Plain text content (converted to Lexical format)
+            content_text: Plain text content
             user: User creating the document (uses anonymous user if None)
             
         Returns:
@@ -114,41 +112,8 @@ class DocumentService:
                 },
             )
 
-        # Handle content processing
-        if content is not None:
-            # Validate provided Lexical content
-            if not isinstance(content, dict):
-                raise ValueError("Content must be a valid JSON object")
-            final_content = content
-        elif content_text is not None:
-            content_text = content_text.strip()
-            if content_text:
-                # Convert plain text to Lexical format
-                final_content = create_basic_lexical_content(content_text)
-            else:
-                # Empty content - create empty structure
-                final_content = {
-                    "root": {
-                        "type": "root",
-                        "children": [],
-                        "direction": "ltr",
-                        "format": "",
-                        "indent": 0,
-                        "version": 1
-                    }
-                }
-        else:
-            # Create empty content
-            final_content = {
-                "root": {
-                    "type": "root",
-                    "children": [],
-                    "direction": "ltr",
-                    "format": "",
-                    "indent": 0,
-                    "version": 1
-                }
-            }
+        # Handle content - just use the plain text directly
+        final_content = content_text.strip() if content_text else ""
 
         # Create document
         document = Document.objects.create(
@@ -173,7 +138,6 @@ class DocumentService:
     def update_document(
         document: Document,
         title: Optional[str] = None,
-        content: Optional[Dict[str, Any]] = None,
         content_text: Optional[str] = None,
         user: User = None,
         expected_version: Optional[int] = None
@@ -184,8 +148,7 @@ class DocumentService:
         Args:
             document: Document to update
             title: New title (optional)
-            content: New Lexical content (optional, takes precedence over content_text)
-            content_text: New plain text content (optional, converted to Lexical)
+            content_text: New plain text content (optional)
             user: User making the change
             expected_version: Expected current version for conflict detection (optional)
             
@@ -218,29 +181,8 @@ class DocumentService:
                     changes_made = True
 
             # Update content if provided
-            if content is not None:
-                if not isinstance(content, dict):
-                    raise ValueError("Content must be a valid JSON object")
-                if content != document.content:
-                    document.content = content
-                    changes_made = True
-            elif content_text is not None:
-                content_text = content_text.strip()
-                if content_text:
-                    # Convert plain text to Lexical format
-                    new_content = create_basic_lexical_content(content_text)
-                else:
-                    # Empty content - create empty structure
-                    new_content = {
-                        "root": {
-                            "type": "root",
-                            "children": [],
-                            "direction": "ltr",
-                            "format": "",
-                            "indent": 0,
-                            "version": 1
-                        }
-                    }
+            if content_text is not None:
+                new_content = content_text.strip()
                 if new_content != document.content:
                     document.content = new_content
                     changes_made = True
@@ -256,11 +198,10 @@ class DocumentService:
                         "from": original_title,
                         "to": document.title
                     }
-                if (content is not None and content != original_content) or \
-                   (content_text is not None and document.content != original_content):
+                if content_text is not None and document.content != original_content:
                     change_data["content_change"] = {
-                        "operation": "update",
-                        "via": "content" if content is not None else "text"
+                        "operation": "update", 
+                        "via": "text"
                     }
 
                 DocumentChange.objects.create(
@@ -304,8 +245,8 @@ class DocumentService:
                 f"Version conflict: expected {expected_version}, got {document.version}"
             )
 
-        # Get current plain text
-        original_text = document.get_plain_text()
+        # Get current plain text (content is already plain text)
+        original_text = document.content
 
         # Apply changes using OT operations
         try:
@@ -321,8 +262,8 @@ class DocumentService:
             raise InvalidChangeError(f"Failed to apply changes: {str(e)}")
 
         with transaction.atomic():
-            # Update document content
-            document.content = update_lexical_content_with_text(document.content, new_text)
+            # Update document content directly with plain text
+            document.content = new_text
             document.last_modified_by = user
             document.save()
 
@@ -360,7 +301,7 @@ class DocumentService:
             ot_operations = DocumentService._convert_changes_to_ot_operations(changes)
             operation_set = OTOperationSet(ot_operations)
             
-            original_text = document.get_plain_text()
+            original_text = document.content
             logger.info(f"Previewing OT operations on text: '{original_text}' (length: {len(original_text)})")
             
             # Apply operations to get preview result

@@ -29,7 +29,7 @@ class Migration(migrations.Migration):
                 ("title", models.CharField(max_length=255)),
                 (
                     "content",
-                    models.JSONField(default=dict, help_text="Lexical editor content"),
+                    models.TextField(default="", help_text="Document content as plain text"),
                 ),
                 ("version", models.IntegerField(default=1)),
                 ("created_at", models.DateTimeField(auto_now_add=True)),

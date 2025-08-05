@@ -94,53 +94,33 @@ class DocumentSearchVectorTestCase(TestCase):
         self.assertIsNotNone(doc.search_vector)
     
     def test_document_plain_text_extraction(self):
-        """Test Document.get_plain_text() with various content structures."""
-        # Test with standard Lexical structure
+        """Test Document.get_plain_text property with plain text content."""
+        # Test with plain text content
         doc1 = Document.objects.create(
             title='Test Doc 1',
-            content={
-                'root': {
-                    'children': [
-                        {
-                            'type': 'paragraph',
-                            'children': [
-                                {'type': 'text', 'text': 'Hello world'}
-                            ]
-                        }
-                    ]
-                }
-            },
+            content='Hello world',
             created_by=self.user
         )
         
-        self.assertEqual(doc1.get_plain_text(), 'Hello world')
+        self.assertEqual(doc1.get_plain_text, 'Hello world')
         
-        # Test with alternative content structure
+        # Test with multi-line content
         doc2 = Document.objects.create(
             title='Test Doc 2',
-            content={
-                'content': [
-                    {
-                        'type': 'paragraph',
-                        'children': [
-                            {'type': 'text', 'text': 'Alternative structure'}
-                        ]
-                    }
-                ]
-            },
+            content='Alternative structure\n\nWith multiple lines',
             created_by=self.user
         )
         
-        self.assertEqual(doc2.get_plain_text(), 'Alternative structure')
+        self.assertEqual(doc2.get_plain_text, 'Alternative structure\n\nWith multiple lines')
         
         # Test with empty content
         doc3 = Document.objects.create(
             title='Empty Doc',
-            content={},
+            content='',
             created_by=self.user
         )
         
-        self.assertEqual(doc3.get_plain_text(), '')
+        self.assertEqual(doc3.get_plain_text, '')
 
 
 class DocumentServiceSearchTestCase(TestCase):
@@ -458,7 +438,7 @@ class DocumentSearchSerializerTestCase(TestCase):
         self.assertLessEqual(len(snippet), 203)  # 200 + "..."
         
         # Should end with "..." if content was truncated
-        if len(self.doc.get_plain_text()) > 200:
+        if len(self.doc.get_plain_text) > 200:
             self.assertTrue(snippet.endswith('...'))
     
     def test_created_by_name_field(self):

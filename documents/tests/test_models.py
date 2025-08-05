@@ -54,7 +54,7 @@ def test_document_default_values(user):
     """Test document default values."""
     document = Document.objects.create(title="Test Document", created_by=user)
 
-    assert document.content == {}
+    assert document.content == ""
     assert document.version == 1
     assert document.created_at is not None
     assert document.updated_at is not None
@@ -80,15 +80,7 @@ def test_document_version_increment_on_content_change(user, simple_document_cont
     )
     original_version = document.version
 
-    new_content = {
-        "type": "doc",
-        "content": [
-            {
-                "type": "paragraph",
-                "content": [{"type": "text", "text": "Updated content"}],
-            }
-        ],
-    }
+    new_content = "Updated content"
     document.content = new_content
     document.save()
 
@@ -160,8 +152,8 @@ def test_document_cascade_delete(user, simple_document_content):
         Document.objects.get(id=document_id)
 
 @pytest.mark.django_db
-def test_document_json_field_content(user, complex_document_content):
-    """Test JSONField content handling."""
+def test_document_text_field_content(user, complex_document_content):
+    """Test TextField content handling."""
     document = Document.objects.create(
         title="Complex Document", content=complex_document_content, created_by=user
     )

@@ -49,15 +49,7 @@ def anonymous_user():
 @pytest.fixture
 def simple_document_content():
     """Simple document content for testing."""
-    return {
-        "type": "doc",
-        "content": [
-            {
-                "type": "paragraph",
-                "content": [{"type": "text", "text": "Simple test content"}],
-            }
-        ],
-    }
+    return "Simple test content"
 
 
 @pytest.fixture
@@ -65,64 +57,14 @@ def sample_document_data():
     """Sample document data for testing."""
     return {
         "title": "Test Document",
-        "content": {
-            "type": "doc",
-            "content": [
-                {
-                    "type": "paragraph",
-                    "content": [
-                        {"type": "text", "text": "This is a test document content."}
-                    ],
-                }
-            ],
-        },
+        "content": "This is a test document content.",
     }
 
 
 @pytest.fixture
 def complex_document_content():
     """Complex document content for testing."""
-    return {
-        "type": "doc",
-        "content": [
-            {
-                "type": "heading",
-                "attrs": {"level": 1},
-                "content": [{"type": "text", "text": "Main Title"}],
-            },
-            {
-                "type": "paragraph",
-                "content": [
-                    {"type": "text", "text": "This is a "},
-                    {"type": "text", "marks": [{"type": "strong"}], "text": "complex"},
-                    {"type": "text", "text": " document with multiple elements."},
-                ],
-            },
-            {
-                "type": "bulletList",
-                "content": [
-                    {
-                        "type": "listItem",
-                        "content": [
-                            {
-                                "type": "paragraph",
-                                "content": [{"type": "text", "text": "First item"}],
-                            }
-                        ],
-                    },
-                    {
-                        "type": "listItem",
-                        "content": [
-                            {
-                                "type": "paragraph",
-                                "content": [{"type": "text", "text": "Second item"}],
-                            }
-                        ],
-                    },
-                ],
-            },
-        ],
-    }
+    return "Main Title\n\nThis is a complex document with multiple elements.\n\n• First item\n• Second item"
 
 
 # Document Fixtures
@@ -144,17 +86,7 @@ def multiple_documents(user, anonymous_user):
     # Document by regular user
     doc1 = Document.objects.create(
         title="Python Programming Guide",
-        content={
-            "type": "doc",
-            "content": [
-                {
-                    "type": "paragraph",
-                    "content": [
-                        {"type": "text", "text": "Learn Python programming basics."}
-                    ],
-                }
-            ],
-        },
+        content="Learn Python programming basics.",
         created_by=user,
     )
     documents.append(doc1)
@@ -162,20 +94,7 @@ def multiple_documents(user, anonymous_user):
     # Document by anonymous user
     doc2 = Document.objects.create(
         title="JavaScript Tutorial",
-        content={
-            "type": "doc",
-            "content": [
-                {
-                    "type": "paragraph",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "JavaScript fundamentals and advanced concepts.",
-                        }
-                    ],
-                }
-            ],
-        },
+        content="JavaScript fundamentals and advanced concepts.",
         created_by=anonymous_user,
     )
     documents.append(doc2)
@@ -183,20 +102,7 @@ def multiple_documents(user, anonymous_user):
     # Another document by regular user
     doc3 = Document.objects.create(
         title="Django REST Framework",
-        content={
-            "type": "doc",
-            "content": [
-                {
-                    "type": "paragraph",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Building APIs with Django REST Framework.",
-                        }
-                    ],
-                }
-            ],
-        },
+        content="Building APIs with Django REST Framework.",
         created_by=user,
     )
     documents.append(doc3)
@@ -256,33 +162,9 @@ def document_factory(user):
             created_by = user
             
         if content_text is not None:
-            # Convert text to Lexical format
-            from documents.utils import create_basic_lexical_content
-            content = create_basic_lexical_content(content_text)
+            content = content_text
         elif content is None:
-            content = {
-                "root": {
-                    "type": "root",
-                    "children": [{
-                        "type": "paragraph",
-                        "children": [{
-                            "type": "text",
-                            "text": "Test content",
-                            "format": 0,
-                            "mode": "normal",
-                            "style": "",
-                            "detail": 0
-                        }],
-                        "format": "",
-                        "indent": 0,
-                        "version": 1
-                    }],
-                    "direction": "ltr",
-                    "format": "",
-                    "indent": 0,
-                    "version": 1
-                }
-            }
+            content = "Test content"
         
         return Document.objects.create(
             title=title,
@@ -324,15 +206,7 @@ def user_factory():
 @pytest.fixture
 def integration_test_content():
     """Content specifically for integration testing."""
-    return {
-        "type": "doc",
-        "content": [
-            {
-                "type": "paragraph",
-                "content": [{"type": "text", "text": "Integration test content"}],
-            }
-        ],
-    }
+    return "Integration test content"
 
 
 @pytest.fixture
@@ -343,17 +217,7 @@ def search_test_documents(user, anonymous_user):
     # Python content documents
     doc1 = Document.objects.create(
         title="Python Tutorial",
-        content={
-            "type": "doc",
-            "content": [
-                {
-                    "type": "paragraph",
-                    "content": [
-                        {"type": "text", "text": "Learn Python programming language"}
-                    ],
-                }
-            ],
-        },
+        content="Learn Python programming language",
         created_by=user,
     )
     documents.append(doc1)
@@ -361,17 +225,7 @@ def search_test_documents(user, anonymous_user):
     # JavaScript content documents
     doc2 = Document.objects.create(
         title="JavaScript Guide",
-        content={
-            "type": "doc",
-            "content": [
-                {
-                    "type": "paragraph",
-                    "content": [
-                        {"type": "text", "text": "JavaScript fundamentals and advanced concepts"}
-                    ],
-                }
-            ],
-        },
+        content="JavaScript fundamentals and advanced concepts",
         created_by=user,
     )
     documents.append(doc2)
@@ -379,17 +233,7 @@ def search_test_documents(user, anonymous_user):
     # Django content (contains Python in content)
     doc3 = Document.objects.create(
         title="Django Framework",
-        content={
-            "type": "doc",
-            "content": [
-                {
-                    "type": "paragraph",
-                    "content": [
-                        {"type": "text", "text": "Python web framework for rapid development"}
-                    ],
-                }
-            ],
-        },
+        content="Python web framework for rapid development",
         created_by=user,
     )
     documents.append(doc3)

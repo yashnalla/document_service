@@ -410,7 +410,7 @@ class TestContentDiffGeneratorIntegration:
             content_text="Hello World"
         )
         
-        old_content = document.get_plain_text()
+        old_content = document.get_plain_text
         new_content = "Hello Beautiful World"
         
         payload = ContentDiffGenerator.create_api_payload(

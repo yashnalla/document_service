@@ -99,16 +99,7 @@ class TestDocumentAPIClient:
         client = DocumentAPIClient(user)
         
         title = "New Test Document"
-        content = {
-            "root": {
-                "type": "root",
-                "children": [],
-                "direction": "ltr",
-                "format": "",
-                "indent": 0,
-                "version": 1
-            }
-        }
+        content = "This is test content"
         
         result = client.create_document(title, content)
         
@@ -168,7 +159,7 @@ class TestDocumentAPIClient:
         assert result["version"] == document.version + 1
         # Verify the content was changed
         document.refresh_from_db()
-        assert "Universe" in document.get_plain_text()
+        assert "Universe" in document.get_plain_text
     
     def test_apply_changes_version_conflict(self, user, document_factory):
         """Test apply changes with version conflict."""
@@ -363,19 +354,7 @@ class TestAPIClientIntegration:
         
         # 1. Create document
         title = "Integration Test Document"
-        content = {
-            "root": {
-                "type": "root",
-                "children": [{
-                    "type": "paragraph",
-                    "children": [{
-                        "type": "text",
-                        "text": "Initial content",
-                        "format": 0
-                    }]
-                }]
-            }
-        }
+        content = "Initial content"
         
         created_doc = client.create_document(title, content)
         doc_id = created_doc["id"]
@@ -424,7 +403,7 @@ class TestAPIClientIntegration:
         
         # Create document with client1
         title = "Concurrent Test"
-        content = {"root": {"type": "root", "children": []}}
+        content = ""
         doc = client1.create_document(title, content)
         doc_id = doc["id"]
         
@@ -452,19 +431,7 @@ class TestAPIClientIntegration:
         
         # Create a large document
         large_text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. " * 500
-        content = {
-            "root": {
-                "type": "root", 
-                "children": [{
-                    "type": "paragraph",
-                    "children": [{
-                        "type": "text",
-                        "text": large_text,
-                        "format": 0
-                    }]
-                }]
-            }
-        }
+        content = large_text
         
         doc = client.create_document("Large Document", content)
         doc_id = doc["id"]
@@ -482,7 +449,7 @@ class TestAPIClientIntegration:
         # Verify the change was applied
         retrieved = client.get_document(doc_id)
         # Document should contain the inserted content
-        doc_text = Document.objects.get(id=doc_id).get_plain_text()
+        doc_text = Document.objects.get(id=doc_id).get_plain_text
         assert "INSERTED CONTENT" in doc_text
     
     def test_error_handling_edge_cases(self, user):
@@ -494,7 +461,7 @@ class TestAPIClientIntegration:
             client.get_document("not-a-uuid")
         
         # Test with empty changes - this should raise a validation error
-        doc = client.create_document("Test", {"root": {"type": "root", "children": []}})
+        doc = client.create_document("Test", "")
         
         # Empty changes should raise validation error
         with pytest.raises((APIValidationError, APIClientError)):
@@ -506,19 +473,7 @@ class TestAPIClientIntegration:
         
         # Create document with Unicode content
         title = "Unicode Test 测试 🚀"
-        content = {
-            "root": {
-                "type": "root",
-                "children": [{
-                    "type": "paragraph", 
-                    "children": [{
-                        "type": "text",
-                        "text": "Hello 世界! 🌍 Special chars: @#$%^&*()",
-                        "format": 0
-                    }]
-                }]
-            }
-        }
+        content = "Hello 世界! 🌍 Special chars: @#$%^&*()"
         
         doc = client.create_document(title, content)
         assert doc["title"] == title
@@ -526,7 +481,7 @@ class TestAPIClientIntegration:
         # Apply changes with Unicode  
         # Get the actual content to calculate correct retain length
         doc_obj = Document.objects.get(id=doc["id"])
-        current_text = doc_obj.get_plain_text()
+        current_text = doc_obj.get_plain_text
         remaining_length = len(current_text) - 5
         
         changes = [
@@ -541,5 +496,5 @@ class TestAPIClientIntegration:
         # Verify Unicode handling
         retrieved = client.get_document(doc["id"])
         doc_obj = Document.objects.get(id=doc["id"])
-        doc_text = doc_obj.get_plain_text()
+        doc_text = doc_obj.get_plain_text
         assert "你好" in doc_text

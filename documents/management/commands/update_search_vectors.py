@@ -72,7 +72,7 @@ class Command(BaseCommand):
             return
 
         try:
-            content_text = document.get_plain_text()
+            content_text = document.content or ""
             
             with transaction.atomic():
                 Document.objects.filter(pk=document.pk).update(
@@ -135,7 +135,7 @@ class Command(BaseCommand):
                 with transaction.atomic():
                     for document in batch:
                         try:
-                            content_text = document.get_plain_text()
+                            content_text = document.content or ""
                             
                             # Update the search vector
                             Document.objects.filter(pk=document.pk).update(

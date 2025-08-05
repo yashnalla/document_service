@@ -47,7 +47,7 @@ class TestDocumentService:
         assert document.created_by == user
         assert document.last_modified_by == user
         assert document.version == 1
-        assert document.get_plain_text() == content_text
+        assert document.get_plain_text == content_text
         
         # Check that change record was created
         changes = document.changes.all()
@@ -75,34 +75,19 @@ class TestDocumentService:
         changes = document.changes.all()
         assert changes.count() == 1
 
-    def test_create_document_with_lexical_content(self, user):
-        """Test creating a document with Lexical content."""
-        title = "Lexical Document"
-        lexical_content = {
-            "root": {
-                "type": "root",
-                "children": [
-                    {
-                        "type": "paragraph",
-                        "children": [
-                            {
-                                "type": "text",
-                                "text": "Custom lexical content"
-                            }
-                        ]
-                    }
-                ]
-            }
-        }
+    def test_create_document_with_plain_text_content(self, user):
+        """Test creating a document with plain text content."""
+        title = "Plain Text Document"
+        plain_text_content = "Custom plain text content"
         
         document = DocumentService.create_document(
             title=title,
-            content=lexical_content,
+            content_text=plain_text_content,
             user=user
         )
         
-        assert document.content == lexical_content
-        assert "Custom lexical content" in document.get_plain_text()
+        assert document.content == plain_text_content
+        assert "Custom plain text content" in document.get_plain_text
 
     def test_create_document_validation_errors(self, user):
         """Test document creation validation."""
@@ -115,9 +100,9 @@ class TestDocumentService:
         with pytest.raises(ValueError, match="Title cannot exceed 255 characters"):
             DocumentService.create_document(title=long_title, user=user)
         
-        # Invalid content
-        with pytest.raises(ValueError, match="Content must be a valid JSON object"):
-            DocumentService.create_document(title="Test", content="not a dict", user=user)
+        # Note: Plain text content doesn't require validation anymore
+        # This test is no longer applicable since we switched to plain text
+        pass
 
     def test_update_document_title_and_content(self, user):
         """Test updating both title and content."""
@@ -138,7 +123,7 @@ class TestDocumentService:
         )
         
         assert updated_document.title == "Updated Title"
-        assert updated_document.get_plain_text() == "Updated content"
+        assert updated_document.get_plain_text == "Updated content"
         assert updated_document.version == original_version + 1
         assert updated_document.last_modified_by == user
         
@@ -194,7 +179,7 @@ class TestDocumentService:
         )
         
         assert updated_document.title == original_title
-        assert updated_document.get_plain_text() == "New content"
+        assert updated_document.get_plain_text == "New content"
         assert updated_document.version == original_version + 1
         
         # Check change record
@@ -280,7 +265,7 @@ class TestDocumentService:
             expected_version=original_version
         )
         
-        assert "Hello universe" in updated_document.get_plain_text()
+        assert "Hello universe" in updated_document.get_plain_text
         assert updated_document.version == original_version + 1
         
         # Check change record

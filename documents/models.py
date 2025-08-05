@@ -1,6 +1,5 @@
 import uuid
 import hashlib
-import json
 from django.db import models
 from django.contrib.auth.models import User
 from django.contrib.postgres.search import SearchVector, SearchVectorField
@@ -11,7 +10,7 @@ from django.urls import reverse
 class Document(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=255)
-    content = models.JSONField(default=dict, help_text="Lexical editor content")
+    content = models.TextField(default="", help_text="Document content as plain text")
     version = models.IntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -41,53 +40,21 @@ class Document(models.Model):
 
     @property
     def etag(self):
-        content_str = json.dumps(self.content, sort_keys=True)
-        content_with_version = f"{content_str}:{self.version}"
+        content_with_version = f"{self.content}:{self.version}"
         return hashlib.md5(content_with_version.encode()).hexdigest()
 
     def increment_version(self):
         self.version += 1
         self.save()
 
-    def get_plain_text(self):
-        if not self.content or not isinstance(self.content, dict):
-            return ""
-
-        def extract_text_from_nodes(nodes):
-            text_parts = []
-            if not isinstance(nodes, list):
-                return ""
-
-            for node in nodes:
-                if not isinstance(node, dict):
-                    continue
-
-                if node.get("type") == "text":
-                    text_parts.append(node.get("text", ""))
-                elif "children" in node:
-                    text_parts.append(extract_text_from_nodes(node["children"]))
-                elif "content" in node:
-                    text_parts.append(extract_text_from_nodes(node["content"]))
-
-            return " ".join(text_parts)
-
-        # Handle both standard Lexical format (root.children) and alternative format (content)
-        root_children = self.content.get("root", {}).get("children", [])
-        if not root_children:
-            root_children = self.content.get("content", [])
-        
-        return extract_text_from_nodes(root_children).strip()
-
     def update_search_vector(self):
         """Update the search vector with title and content text."""
-        content_text = self.get_plain_text()
-        
         # Create search vector with weighted terms:
         # Title has weight 'A' (highest priority)
         # Content text has weight 'B' (medium priority)
         self.search_vector = (
             SearchVector('title', weight='A') +
-            SearchVector(models.Value(content_text), weight='B')
+            SearchVector('content', weight='B')
         )
 
     def save(self, *args, **kwargs):
@@ -112,6 +79,11 @@ class Document(models.Model):
 
     def get_absolute_url(self):
         return reverse("document_detail", kwargs={"pk": self.pk})
+
+    @property
+    def get_plain_text(self):
+        """Return the plain text content for backward compatibility."""
+        return self.content or ""
 
 
 class DocumentChange(models.Model):

@@ -229,13 +229,13 @@ class DocumentAPIClient:
         else:
             raise APIClientError(f"Failed to get document: {data.get('error', 'Unknown error')}")
     
-    def create_document(self, title: str, content: Dict[str, Any]) -> Dict[str, Any]:
+    def create_document(self, title: str, content: str) -> Dict[str, Any]:
         """
         Create a new document.
         
         Args:
             title: Document title
-            content: Lexical content
+            content: Plain text content
             
         Returns:
             Created document data

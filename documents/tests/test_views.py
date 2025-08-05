@@ -102,15 +102,7 @@ def test_document_update_authenticated_user(user, simple_document_content):
 
     data = {
         "title": "Updated Title",
-        "content": {
-            "type": "doc",
-            "content": [
-                {
-                    "type": "paragraph",
-                    "content": [{"type": "text", "text": "Updated content"}],
-                }
-            ],
-        },
+        "content": "Updated plain text content",
     }
 
     url = reverse("document-detail", kwargs={"pk": document.pk})
@@ -184,38 +176,12 @@ def test_document_search_by_content(user):
     
     Document.objects.create(
         title="Document 1",
-        content={
-            "type": "doc",
-            "content": [
-                {
-                    "type": "paragraph",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "This document contains Python code",
-                        }
-                    ],
-                }
-            ],
-        },
+        content="This document contains Python code",
         created_by=user,
     )
     Document.objects.create(
         title="Document 2",
-        content={
-            "type": "doc",
-            "content": [
-                {
-                    "type": "paragraph",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "This document is about JavaScript",
-                        }
-                    ],
-                }
-            ],
-        },
+        content="This document is about JavaScript",
         created_by=user,
     )
 
@@ -432,12 +398,12 @@ def test_document_create_invalid_content(user):
     client.force_authenticate(user=user)
     
     data = {
-        "title": "Test Document",
-        "content": "invalid content",  # Should be dict, not string
+        "title": "",  # Empty title is invalid
+        "content": "Valid plain text content",
     }
 
     url = reverse("document-list")
     response = client.post(url, data, format="json")
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
-    assert "content" in response.data
+    assert "title" in response.data

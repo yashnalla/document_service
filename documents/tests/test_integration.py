@@ -45,17 +45,7 @@ def test_document_create_read_update_workflow(user, integration_test_content):
     # UPDATE
     update_data = {
         "title": "Updated Integration Test Document",
-        "content": {
-            "type": "doc",
-            "content": [
-                {
-                    "type": "paragraph",
-                    "content": [
-                        {"type": "text", "text": "Updated integration test content"}
-                    ],
-                }
-            ],
-        },
+        "content": "Updated integration test content"
     }
 
     update_response = client.put(detail_url, update_data, format="json")
@@ -148,17 +138,7 @@ def test_version_tracking_integration(user, integration_test_content):
     assert update_response.data["version"] == 2
 
     # Update content only
-    new_content = {
-        "type": "doc",
-        "content": [
-            {
-                "type": "paragraph",
-                "content": [
-                    {"type": "text", "text": "Updated content for version tracking"}
-                ],
-            }
-        ],
-    }
+    new_content = "Updated content for version tracking"
 
     update_data = {
         "title": "Updated Version Test Document",  # Same title

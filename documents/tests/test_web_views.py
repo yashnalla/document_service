@@ -39,14 +39,14 @@ class TestDocumentWebListView:
         other_user = User.objects.create_user(username='other', password='pass')
         other_document = Document.objects.create(
             title='Other User Document',
-            content={'root': {'type': 'root', 'children': []}},
+            content='Other user document content',
             created_by=other_user
         )
         
         # Create document for the logged-in user
         user_document = Document.objects.create(
             title='User Document',
-            content={'root': {'type': 'root', 'children': []}},
+            content='User document content',
             created_by=user
         )
         
@@ -66,7 +66,7 @@ class TestDocumentWebListView:
         for i in range(15):
             Document.objects.create(
                 title=f'Document {i}',
-                content={'root': {'type': 'root', 'children': []}},
+                content=f'Content for document {i}',
                 created_by=user
             )
         
@@ -127,7 +127,7 @@ class TestDocumentWebCreateView:
         document = Document.objects.get(title='New Test Document')
         assert document.created_by == user
         assert document.last_modified_by == user
-        assert document.get_plain_text() == 'This is test content'
+        assert document.get_plain_text == 'This is test content'
         
         # Check redirect URL
         assert f'/documents/{document.pk}/' in response.url
@@ -182,11 +182,7 @@ class TestDocumentWebCreateView:
         assert response.status_code == 302
         
         document = Document.objects.get(title='Empty Document')
-        assert document.get_plain_text() == ''
-        # Empty document should have one empty paragraph (correct Lexical structure)
-        assert len(document.content['root']['children']) == 1
-        assert document.content['root']['children'][0]['type'] == 'paragraph'
-        assert document.content['root']['children'][0]['children'] == []
+        assert document.get_plain_text == ''
 
 
 @pytest.mark.django_db
@@ -197,7 +193,7 @@ class TestDocumentWebDetailView:
         """Test that anonymous users are redirected to login"""
         document = Document.objects.create(
             title='Test Document',
-            content={'root': {'type': 'root', 'children': []}},
+            content='Test document content',
             created_by=user
         )
         
@@ -212,7 +208,7 @@ class TestDocumentWebDetailView:
         """Test detail view for authenticated user"""
         document = Document.objects.create(
             title='Test Document',
-            content={'root': {'type': 'root', 'children': []}},
+            content='Test document content',
             created_by=user
         )
         
@@ -231,7 +227,7 @@ class TestDocumentWebDetailView:
         other_user = User.objects.create_user(username='other', password='pass')
         document = Document.objects.create(
             title='Other User Document',
-            content={'root': {'type': 'root', 'children': []}},
+            content='Other user document content',
             created_by=other_user
         )
         
@@ -250,7 +246,7 @@ class TestDocumentWebDetailView:
         """Test POST request to update document"""
         document = Document.objects.create(
             title='Original Title',
-            content={'root': {'type': 'root', 'children': []}},
+            content='Original content',
             created_by=user
         )
         
@@ -269,7 +265,7 @@ class TestDocumentWebDetailView:
         # Check document was updated
         document.refresh_from_db()
         assert document.title == 'Original Title'  # Title should remain unchanged
-        assert document.get_plain_text() == 'Updated content'
+        assert document.get_plain_text == 'Updated content'
         assert document.last_modified_by == user
 
 
@@ -305,7 +301,7 @@ class TestDocumentWebViewsIntegration:
         
         document.refresh_from_db()
         assert document.title == 'Lifecycle Test Document'  # Title unchanged
-        assert document.get_plain_text() == 'Updated content'
+        assert document.get_plain_text == 'Updated content'
     
     def test_document_list_after_operations(self, user):
         """Test document list reflects create operations"""

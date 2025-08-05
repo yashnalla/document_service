@@ -112,7 +112,7 @@ class TestDocumentFormIntegration:
     """Integration tests for document forms with views"""
     
     def test_form_creates_document_with_lexical_format(self, user):
-        """Test that form properly formats content for Lexical editor"""
+        """Test that form properly stores content as plain text"""
         form_data = {
             'title': 'Test Document',
             'content': 'This is test content'
@@ -120,43 +120,14 @@ class TestDocumentFormIntegration:
         form = DocumentCreateForm(data=form_data)
         assert form.is_valid()
         
-        # Simulate what the view does
+        # Simulate what the view does - store content as plain text
         document = form.save(commit=False)
         document.created_by = user
         document.last_modified_by = user
         
-        # Handle content conversion (as done in the view)
+        # Content is stored as plain text directly
         content_text = form.cleaned_data.get('content', '').strip()
-        if content_text:
-            document.content = {
-                "root": {
-                    "children": [
-                        {
-                            "children": [
-                                {
-                                    "detail": 0,
-                                    "format": 0,
-                                    "mode": "normal",
-                                    "style": "",
-                                    "text": content_text,
-                                    "type": "text",
-                                    "version": 1
-                                }
-                            ],
-                            "direction": "ltr",
-                            "format": "",
-                            "indent": 0,
-                            "type": "paragraph",
-                            "version": 1
-                        }
-                    ],
-                    "direction": "ltr",
-                    "format": "",
-                    "indent": 0,
-                    "type": "root",
-                    "version": 1
-                }
-            }
+        document.content = content_text
         
         document.save()
         
@@ -165,9 +136,8 @@ class TestDocumentFormIntegration:
         assert document.title == 'Test Document'
         assert document.created_by == user
         assert document.last_modified_by == user
-        assert document.get_plain_text() == 'This is test content'
-        assert isinstance(document.content, dict)
-        assert document.content['root']['type'] == 'root'
+        assert document.get_plain_text == 'This is test content'
+        assert document.content == 'This is test content'
     
     def test_form_creates_document_with_empty_content(self, user):
         """Test that form properly handles empty content"""
@@ -178,30 +148,19 @@ class TestDocumentFormIntegration:
         form = DocumentCreateForm(data=form_data)
         assert form.is_valid()
         
-        # Simulate what the view does
+        # Simulate what the view does - store content as plain text
         document = form.save(commit=False)
         document.created_by = user
         document.last_modified_by = user
         
-        # Handle empty content (as done in the view)
+        # Content is stored as plain text directly (empty string)
         content_text = form.cleaned_data.get('content', '').strip()
-        if not content_text:
-            document.content = {
-                "root": {
-                    "children": [],
-                    "direction": "ltr",
-                    "format": "",
-                    "indent": 0,
-                    "type": "root",
-                    "version": 1
-                }
-            }
+        document.content = content_text
         
         document.save()
         
         # Verify the document was created properly
         assert document.pk is not None
         assert document.title == 'Empty Document'
-        assert document.get_plain_text() == ''
-        assert isinstance(document.content, dict)
-        assert document.content['root']['children'] == []
+        assert document.get_plain_text == ''
+        assert document.content == ''

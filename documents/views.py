@@ -99,7 +99,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
         logger.info(f"Apply changes request for document {pk}")
         logger.info(f"Request data: {request.data}")
         logger.info(f"Document current version: {document.version}")
-        logger.info(f"Document content length: {len(document.get_plain_text())}")
+        logger.info(f"Document content length: {len(document.get_plain_text)}")
         
         serializer = DocumentChangeSerializer(
             document, data=request.data, context={"request": request}
@@ -277,7 +277,7 @@ class DocumentWebDetailView(LoginRequiredMixin, DetailView):
                 
                 # Refresh document from database to get latest content
                 document.refresh_from_db()
-                old_content_text = document.get_plain_text()
+                old_content_text = document.get_plain_text
                 
                 logger.info(f"Document Lexical content: {document.content}")
                 logger.info(f"Old content text: '{old_content_text}'")
@@ -371,17 +371,13 @@ class DocumentWebCreateView(LoginRequiredMixin, CreateView):
             title = form.cleaned_data['title']
             content_text = form.cleaned_data.get('content', '')
             
-            # Convert content text to Lexical format for API
-            from .utils import create_basic_lexical_content
-            lexical_content = create_basic_lexical_content(content_text)
-            
             # Create API client
             api_client = DocumentAPIClient(self.request.user)
             
-            # Create document via API
+            # Create document via API with plain text content
             document_data = api_client.create_document(
                 title=title,
-                content=lexical_content
+                content=content_text
             )
             
             messages.success(self.request, f'Document "{document_data["title"]}" created successfully!')

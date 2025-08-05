@@ -115,15 +115,7 @@ def test_document_serializer_content_included(document):
 def test_document_serializer_content_validation_valid():
     """Test DocumentSerializer content validation with valid data."""
     serializer = DocumentSerializer()
-    valid_content = {
-        "type": "doc",
-        "content": [
-            {
-                "type": "paragraph",
-                "content": [{"type": "text", "text": "Valid content"}],
-            }
-        ],
-    }
+    valid_content = "Valid plain text content"
 
     # Should not raise exception
     validated_content = serializer.validate_content(valid_content)
@@ -135,17 +127,11 @@ def test_document_serializer_content_validation_invalid():
     """Test DocumentSerializer content validation with invalid data."""
     serializer = DocumentSerializer()
 
-    # String instead of dict
-    with pytest.raises(ValidationError):
-        serializer.validate_content("invalid content")
-
-    # Number instead of dict
-    with pytest.raises(ValidationError):
-        serializer.validate_content(123)
-
-    # List instead of dict
-    with pytest.raises(ValidationError):
-        serializer.validate_content(["invalid"])
+    # Plain text content doesn't have specific validation anymore
+    # All string content is valid, so this test is no longer applicable
+    valid_content = "Any string content is valid"
+    validated_content = serializer.validate_content(valid_content)
+    assert validated_content == valid_content
 
 
 @pytest.mark.django_db
@@ -202,22 +188,15 @@ def test_document_create_serializer_content_validation():
     """Test content validation in create serializer."""
     serializer = DocumentCreateSerializer()
 
-    # Valid content
-    valid_content = {
-        "type": "doc",
-        "content": [
-            {
-                "type": "paragraph",
-                "content": [{"type": "text", "text": "Valid content"}],
-            }
-        ],
-    }
+    # Valid plain text content
+    valid_content = "Valid plain text content"
     validated_content = serializer.validate_content(valid_content)
     assert validated_content == valid_content
 
-    # Invalid content
-    with pytest.raises(ValidationError):
-        serializer.validate_content("invalid")
+    # All string content is valid now
+    another_valid_content = "Any string content is valid"
+    validated_content = serializer.validate_content(another_valid_content)
+    assert validated_content == another_valid_content
 
 
 @pytest.mark.django_db
@@ -230,7 +209,7 @@ def test_document_create_authenticated_user(user):
     serializer = DocumentCreateSerializer(context={"request": request})
     validated_data = {
         "title": "Test Document",
-        "content": {"type": "doc", "content": []},
+        "content": "Test plain text content",
     }
 
     document = serializer.create(validated_data)
@@ -251,7 +230,7 @@ def test_document_create_anonymous_user():
     serializer = DocumentCreateSerializer(context={"request": request})
     validated_data = {
         "title": "Anonymous Document",
-        "content": {"type": "doc", "content": []},
+        "content": "Anonymous plain text content",
     }
 
     document = serializer.create(validated_data)
@@ -274,7 +253,7 @@ def test_document_create_anonymous_user_reuse(anonymous_user):
     serializer = DocumentCreateSerializer(context={"request": request})
     validated_data = {
         "title": "Anonymous Document",
-        "content": {"type": "doc", "content": []},
+        "content": "Anonymous plain text content",
     }
 
     document = serializer.create(validated_data)
@@ -296,15 +275,7 @@ def test_document_create_serializer_full_flow(user):
 
     data = {
         "title": "  Test Document  ",  # With whitespace
-        "content": {
-            "type": "doc",
-            "content": [
-                {
-                    "type": "paragraph",
-                    "content": [{"type": "text", "text": "Test content"}],
-                }
-            ],
-        },
+        "content": "Test plain text content",
     }
 
     serializer = DocumentCreateSerializer(data=data, context={"request": request})

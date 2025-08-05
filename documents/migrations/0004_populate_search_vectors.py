@@ -19,52 +19,21 @@ def populate_search_vectors(apps, schema_editor):
         batch = documents[i:i + batch_size]
         
         for document in batch:
-            # Extract plain text from content (simplified version for migration)
-            content_text = extract_plain_text_simple(document.content)
+            # Content is now plain text, no extraction needed
+            content_text = document.content or ""
             
             # Update search vector
             Document.objects.filter(pk=document.pk).update(
                 search_vector=(
                     SearchVector('title', weight='A') +
-                    SearchVector(models.Value(content_text), weight='B')
+                    SearchVector('content', weight='B')
                 )
             )
         
         print(f"Processed {min(i + batch_size, total_count)} / {total_count} documents")
 
 
-def extract_plain_text_simple(content):
-    """
-    Simplified plain text extraction for migration.
-    This is a basic version that works within the migration context.
-    """
-    if not content or not isinstance(content, dict):
-        return ""
-    
-    def extract_from_nodes(nodes):
-        if not isinstance(nodes, list):
-            return ""
-        
-        text_parts = []
-        for node in nodes:
-            if not isinstance(node, dict):
-                continue
-            
-            if node.get("type") == "text":
-                text_parts.append(node.get("text", ""))
-            elif "children" in node:
-                text_parts.append(extract_from_nodes(node["children"]))
-            elif "content" in node:
-                text_parts.append(extract_from_nodes(node["content"]))
-        
-        return " ".join(text_parts)
-    
-    # Handle both standard Lexical format and alternative format
-    root_children = content.get("root", {}).get("children", [])
-    if not root_children:
-        root_children = content.get("content", [])
-    
-    return extract_from_nodes(root_children).strip()
+# No extraction function needed - content is already plain text
 
 
 def reverse_populate_search_vectors(apps, schema_editor):

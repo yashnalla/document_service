@@ -114,7 +114,7 @@ class Command(BaseCommand):
         empty_content_count = 0
         
         for doc in documents:
-            plain_text = doc.get_plain_text()
+            plain_text = doc.content or ""
             title_length = len(doc.title)
             content_length = len(plain_text)
             

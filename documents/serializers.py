@@ -70,25 +70,26 @@ class DocumentSerializer(serializers.ModelSerializer):
         return None
 
     def validate_content(self, value):
-        if not isinstance(value, dict):
-            raise serializers.ValidationError("Content must be a valid JSON object.")
+        # Content is now plain text, no validation needed
         return value
 
     def update(self, instance, validated_data):
         # Use DocumentService for consistent updates
         user = self.context.get("request").user if "request" in self.context else None
         title = validated_data.get("title")
-        content = validated_data.get("content")
+        content_text = validated_data.get("content")
         
         return DocumentService.update_document(
             document=instance,
             title=title,
-            content=content,
+            content_text=content_text,
             user=user
         )
 
 
 class DocumentCreateSerializer(serializers.ModelSerializer):
+    content = serializers.CharField(allow_blank=True, required=False)
+    
     class Meta:
         model = Document
         fields = ["title", "content"]
@@ -101,18 +102,17 @@ class DocumentCreateSerializer(serializers.ModelSerializer):
         return value.strip()
 
     def validate_content(self, value):
-        if not isinstance(value, dict):
-            raise serializers.ValidationError("Content must be a valid JSON object.")
+        # Content is now plain text, no validation needed
         return value
 
     def create(self, validated_data):
         user = self.context["request"].user
         title = validated_data["title"]
-        content = validated_data.get("content")
+        content_text = validated_data.get("content", "")
         
         return DocumentService.create_document(
             title=title,
-            content=content,
+            content_text=content_text,
             user=user if user.is_authenticated else None
         )
 
@@ -259,7 +259,7 @@ class DocumentSearchResultSerializer(serializers.ModelSerializer):
     
     def get_content_snippet(self, obj):
         """Extract a content snippet for search results (first 200 characters)."""
-        plain_text = obj.get_plain_text()
+        plain_text = obj.content or ""
         if len(plain_text) <= 200:
             return plain_text
         
