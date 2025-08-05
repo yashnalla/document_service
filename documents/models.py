@@ -49,33 +49,30 @@ class Document(models.Model):
 
     def update_search_vector(self):
         """Update the search vector with title and content text."""
-        # Create search vector with weighted terms:
-        # Title has weight 'A' (highest priority)
-        # Content text has weight 'B' (medium priority)
-        self.search_vector = (
-            SearchVector('title', weight='A') +
-            SearchVector('content', weight='B')
+        # Search vectors must be updated using a database query, not direct assignment
+        Document.objects.filter(pk=self.pk).update(
+            search_vector=(
+                SearchVector('title', weight='A') +
+                SearchVector('content', weight='B')
+            )
         )
+        # Refresh the instance to get the updated search vector
+        self.refresh_from_db(fields=['search_vector'])
 
     def save(self, *args, **kwargs):
-        should_update_search = False
-        
+        # Check if this is an update that should increment version
         if self.pk:
             existing = Document.objects.filter(pk=self.pk).first()
             if existing and (
                 existing.title != self.title or existing.content != self.content
             ):
                 self.version += 1
-                should_update_search = True
-        else:
-            # New document
-            should_update_search = True
-        
-        # Update search vector if title or content changed
-        if should_update_search:
-            self.update_search_vector()
             
         super().save(*args, **kwargs)
+        
+        # Always update search vector after saving (unless using update_fields)
+        if 'update_fields' not in kwargs:
+            self.update_search_vector()
 
     def get_absolute_url(self):
         return reverse("document_detail", kwargs={"pk": self.pk})

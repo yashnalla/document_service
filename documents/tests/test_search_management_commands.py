@@ -160,16 +160,17 @@ class UpdateSearchVectorsCommandTestCase(TestCase):
     
     def test_update_search_vectors_batch_size(self):
         """Test --batch-size parameter."""
-        # Create more documents
+        # Create more documents 
         for i in range(5):
             Document.objects.create(
                 title=f'Batch Test Doc {i}',
-                content={'root': {'children': []}},
+                content='Test content',
                 created_by=self.user
             )
         
         out = StringIO()
-        call_command('update_search_vectors', '--batch-size=3', stdout=out)
+        # Use --force to update all documents regardless of search vector status
+        call_command('update_search_vectors', '--batch-size=3', '--force', stdout=out)
         
         output = out.getvalue()
         self.assertIn('Found 7 documents to process', output)  # 2 original + 5 new

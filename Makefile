@@ -1,4 +1,4 @@
-.PHONY: help build up down restart logs shell test lint format check migrate makemigrations createsuperuser collectstatic clean prune health logs-web logs-postgres logs-redis bash-postgres redis-cli db-reset db-shell db-migrate-fresh backup restore db-size dev-setup-fresh redis-monitor redis-info redis-flush show-urls tail-logs env-check
+.PHONY: help build up down restart logs shell test lint format check migrate makemigrations createsuperuser collectstatic clean prune health logs-web logs-postgres logs-redis bash-postgres redis-cli db-reset db-shell db-migrate-fresh backup restore db-size dev-setup-fresh redis-monitor redis-info redis-flush show-urls tail-logs env-check perf-test perf-test-search perf-test-large perf-test-fast perf-test-baseline perf-report perf-install perf-clean
 
 # Default target
 help: ## Show this help message
@@ -213,3 +213,37 @@ tail-logs: ## Tail logs from all services (non-following)
 env-check: ## Verify environment configuration
 	@echo "🔍 Checking environment configuration..."
 	@docker-compose exec web python -c "import os; print('SECRET_KEY:', 'SET' if os.getenv('SECRET_KEY') else 'NOT SET'); print('DEBUG:', os.getenv('DEBUG', 'False')); print('POSTGRES_DB:', os.getenv('POSTGRES_DB', 'document_db')); print('REDIS_URL:', os.getenv('REDIS_URL', 'redis://redis:6379/0'))"
+
+# Performance testing commands
+perf-test: ## Run all performance tests
+	@echo "🏃 Running all performance tests..."
+	docker-compose exec web poetry run pytest performance_tests/ --runperformance -v
+
+perf-test-search: ## Run search performance tests only
+	@echo "🔍 Running search performance tests..."
+	docker-compose exec web poetry run pytest performance_tests/test_search_performance.py --runperformance -v
+
+perf-test-large: ## Run large document performance tests only
+	@echo "📄 Running large document performance tests..."
+	docker-compose exec web poetry run pytest performance_tests/test_large_documents.py --runperformance -v
+
+perf-test-fast: ## Run only fast performance tests (skip slow/memory intensive)
+	@echo "⚡ Running fast performance tests..."
+	docker-compose exec web poetry run pytest performance_tests/ --runperformance -v -m "performance and not slow and not memory_intensive"
+
+perf-test-baseline: ## Establish performance baseline
+	@echo "📊 Establishing performance baseline..."
+	docker-compose exec web poetry run pytest performance_tests/ --runperformance --performance-baseline -v
+
+perf-report: ## Generate performance report
+	@echo "📋 Generating performance report..."
+	docker-compose exec web poetry run pytest performance_tests/ --runperformance --performance-report -v
+
+perf-install: ## Install performance testing dependencies
+	@echo "📦 Installing performance testing dependencies..."
+	docker-compose exec web poetry install --with dev
+
+perf-clean: ## Clean up performance test artifacts
+	@echo "🧹 Cleaning up performance test artifacts..."
+	docker-compose exec web find performance_tests/reports/ -name "*.json" -not -name ".gitkeep" -delete || true
+	docker-compose exec web find performance_tests/reports/ -name "*.html" -delete || true

@@ -1,0 +1,53 @@
+[
+  {
+    "name": "baseline_single_word_queries",
+    "iterations": 10,
+    "total_time": 0.017228916007297812,
+    "min_time": 0.001700625001831213,
+    "max_time": 0.0017553750003571622,
+    "mean_time": 0.0017228916007297813,
+    "median_time": 0.0017192705017805565,
+    "std_dev": 1.856475302058268e-05,
+    "percentile_95": 0.001753706400813826,
+    "percentile_99": 0.001755041280448495,
+    "operations_per_second": 580.419568808868,
+    "timestamp": "2025-08-05T05:57:04.055841",
+    "metadata": {
+      "query_count": 10
+    }
+  },
+  {
+    "name": "baseline_phrase_queries",
+    "iterations": 10,
+    "total_time": 0.0086240020027617,
+    "min_time": 0.0008500840012857225,
+    "max_time": 0.0008752920002734754,
+    "mean_time": 0.0008624002002761699,
+    "median_time": 0.0008615834976808401,
+    "std_dev": 9.653252315209935e-06,
+    "percentile_95": 0.000875216851272853,
+    "percentile_99": 0.0008752769704733509,
+    "operations_per_second": 1159.554461698601,
+    "timestamp": "2025-08-05T05:57:04.067111",
+    "metadata": {
+      "query_count": 5
+    }
+  },
+  {
+    "name": "baseline_compound_queries",
+    "iterations": 10,
+    "total_time": 0.008655874993564794,
+    "min_time": 0.0008447500003967434,
+    "max_time": 0.0008914169993659016,
+    "mean_time": 0.0008655874993564794,
+    "median_time": 0.000865604499267647,
+    "std_dev": 1.6041373483614584e-05,
+    "percentile_95": 0.0008872544987752918,
+    "percentile_99": 0.0008905844992477797,
+    "operations_per_second": 1155.2847063335012,
+    "timestamp": "2025-08-05T05:57:04.078400",
+    "metadata": {
+      "query_count": 5
+    }
+  }
+]

@@ -47,12 +47,12 @@ class DocumentSearchVectorTestCase(TestCase):
         """Test that Document model has search_vector field."""
         doc = Document.objects.create(
             title='Test Document',
-            content={'root': {'children': []}},
+            content='Test content',
             created_by=self.user
         )
         
-        # Initially None
-        self.assertIsNone(doc.search_vector)
+        # Search vector should be automatically created on save
+        self.assertIsNotNone(doc.search_vector)
         
     def test_document_update_search_vector_method(self):
         """Test Document.update_search_vector() method."""

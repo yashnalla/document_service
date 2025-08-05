@@ -1,16 +1,16 @@
 # Document Service
 
-A distributed, real-time collaborative document editing platform built with Django, PostgreSQL, Redis, and Docker. Supports both API and web interfaces, advanced operational transform (OT) based editing, and robust audit trails for document changes.
+A distributed, real-time document editing platform built with Django, PostgreSQL, Redis, and Docker. Supports both API and web interfaces, advanced operational transform (OT) based editing, and robust audit trails for document changes.
 
 ---
 
 ## Features
 
-- **Multi-user collaborative editing** (real-time, WebSocket-based)
+- **Multi-user collaborative editing**
 - **Versioned documents** with change history & audit trails
 - **Operational Transform** system for intelligent conflict resolution
 - **REST API** for document management, full-text search, and change operations
-- **Web interface** with auto-save, live presence, and typing indicators
+- **Web interface** with live presence, and typing indicators
 - **Optimistic locking** (ETag-based) for safe concurrent editing
 - **Advanced search**: PostgreSQL full-text search integration
 - **Anonymous and authenticated user support**
@@ -52,8 +52,8 @@ flowchart TD
 
 **Explanation:**
 - **User:** Interacts via browser or external API client.
-- **Backend:** Django ASGI app handles both REST API and WebSocket connections; collaboration engine manages real-time editing and operational transform logic.
-- **Infra:** PostgreSQL stores documents, users, and change history; Redis is used for caching, real-time WebSocket channels, and live presence tracking.
+- **Backend:** Django ASGI app handles both REST API and WebSocket connections; collaboration engine manages editing and operational transform logic.
+- **Infra:** PostgreSQL stores documents, users, and change history; Redis is used for caching, and live presence tracking.
 
 ---
 
@@ -90,6 +90,7 @@ Run the following command for a fresh development environment:
 ```sh
 make dev-setup-fresh
 ```
+Remember to take note of the user tokens generated when running a fresh setup. You'll need it for the Postman collection below
 
 ### 4. Access the Application
 
@@ -116,6 +117,7 @@ make logs
 ```sh
 make test           # Run the test suite
 make test-coverage  # Run tests with coverage
+make perf-test      # Run isolated performance tests check out /performance_tests for more detail
 ```
 
 ---
@@ -129,8 +131,11 @@ make test-coverage  # Run tests with coverage
 - `GET /api/documents/` – List/search documents
 - `POST /api/documents/` – Create document
 - `PATCH /api/documents/{id}/changes/` – Apply OT operations
+- `POST /api/documents/{id}/preview/` - Preview OT operations
 - `GET /api/documents/{id}/history/` – Change history
 - `GET /api/documents/search/` – Full-text search
+
+You can interact with the API with this [Postman Collection](https://web.postman.co/4fc61f9e-988c-460e-b7b8-80fd18aacbe6)
 ---
 
 ## Contributing

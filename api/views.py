@@ -31,7 +31,6 @@ def api_docs(request):
                 "GET /api/documents/{id}/": "Retrieve a specific document",
                 "PUT /api/documents/{id}/": "Update a document (requires ownership)",
                 "PATCH /api/documents/{id}/": "Partially update a document (requires ownership)",
-                "DELETE /api/documents/{id}/": "Delete a document (requires ownership)",
                 "GET /api/documents/my_documents/": "List current user's documents",
                 "GET /health/": "Health check endpoint",
             },
