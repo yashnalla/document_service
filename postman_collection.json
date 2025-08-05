@@ -1,0 +1,1267 @@
+{
+	"info": {
+		"_postman_id": "dc7058e9-3681-47de-9db3-6aa9dd32539f",
+		"name": "document_service",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "6026142",
+		"_collection_link": "https://www.postman.com/tharagorn/document-service/collection/upaszv0/document-service?action=share&source=collection_link&creator=6026142"
+	},
+	"item": [
+		{
+			"name": "System Endpoints",
+			"item": [
+				{
+					"name": "health-no-auth",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:8000/health/",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"health",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "API_root-no_auth",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8000/api/",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "API Docs-no_auth",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8000/api/docs/",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"docs",
+								""
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Document Management",
+			"item": [
+				{
+					"name": "List Documents",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{Token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "http://localhost:8000/api/documents/",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"documents",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Document",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{Token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"some title\",\n    \"content\": \"some content\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8000/api/documents/",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"documents",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Read Document",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{Token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "http://localhost:8000/api/documents/{{DocumentId}}",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"documents",
+								"{{DocumentId}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Document History",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{Token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "http://localhost:8000/api/documents/{{DocumentId}}/history",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"documents",
+								"{{DocumentId}}",
+								"history"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Search Documents",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{Token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "http://localhost:8000/api/documents/search/?q={{search_query}}&limit={{limit}}&user_only=false",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"documents",
+								"search",
+								""
+							],
+							"query": [
+								{
+									"key": "q",
+									"value": "{{search_query}}"
+								},
+								{
+									"key": "limit",
+									"value": "{{limit}}"
+								},
+								{
+									"key": "user_only",
+									"value": "false"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Operational Transform - Apply Changes",
+			"item": [
+				{
+					"name": "Apply Changes - Insert Text",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{Token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"version\": 1,\n    \"changes\": [\n        {\n            \"operation\": \"insert\",\n            \"content\": \"Hello \"\n        },\n        {\n            \"operation\": \"retain\",\n            \"length\": {{original_content_length}}\n        }\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8000/api/documents/{{DocumentId}}/changes/",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"documents",
+								"{{DocumentId}}",
+								"changes",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Apply Changes - Delete Text",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{Token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"version\": 2,\n    \"changes\": [\n        {\n            \"operation\": \"retain\",\n            \"length\": 10\n        },\n        {\n            \"operation\": \"delete\",\n            \"length\": 5\n        },\n        {\n            \"operation\": \"retain\",\n            \"length\": 15\n        }\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8000/api/documents/{{DocumentId}}/changes/",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"documents",
+								"{{DocumentId}}",
+								"changes",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Apply Changes - Replace Text",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{Token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"version\": 3,\n    \"changes\": [\n        {\n            \"operation\": \"retain\",\n            \"length\": 5\n        },\n        {\n            \"operation\": \"delete\",\n            \"length\": 8\n        },\n        {\n            \"operation\": \"insert\",\n            \"content\": \"replaced text\"\n        },\n        {\n            \"operation\": \"retain\",\n            \"length\": 10\n        }\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8000/api/documents/{{DocumentId}}/changes/",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"documents",
+								"{{DocumentId}}",
+								"changes",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Apply Changes - Complex Operations",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{Token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"version\": 4,\n    \"changes\": [\n        {\n            \"operation\": \"insert\",\n            \"content\": \"# Header\\n\\n\"\n        },\n        {\n            \"operation\": \"retain\",\n            \"length\": 20\n        },\n        {\n            \"operation\": \"delete\",\n            \"length\": 3\n        },\n        {\n            \"operation\": \"insert\",\n            \"content\": \"improved\"\n        },\n        {\n            \"operation\": \"retain\",\n            \"length\": 50\n        },\n        {\n            \"operation\": \"insert\",\n            \"content\": \"\\n\\n## Conclusion\\nThis document has been updated.\"\n        }\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8000/api/documents/{{DocumentId}}/changes/",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"documents",
+								"{{DocumentId}}",
+								"changes",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Apply Changes - Version Conflict Test",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{Token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"version\": 1,\n    \"changes\": [\n        {\n            \"operation\": \"insert\",\n            \"content\": \"This should fail due to version mismatch\"\n        }\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8000/api/documents/{{DocumentId}}/changes/",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"documents",
+								"{{DocumentId}}",
+								"changes",
+								""
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Operational Transform - Preview Changes",
+			"item": [
+				{
+					"name": "Preview Changes - Insert Text",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{Token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"changes\": [\n        {\n            \"operation\": \"retain\",\n            \"length\": 10\n        },\n        {\n            \"operation\": \"insert\",\n            \"content\": \" (PREVIEW)\"\n        },\n        {\n            \"operation\": \"retain\",\n            \"length\": 20\n        }\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8000/api/documents/{{DocumentId}}/preview/",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"documents",
+								"{{DocumentId}}",
+								"preview",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Preview Changes - Complex Transform",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{Token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"changes\": [\n        {\n            \"operation\": \"insert\",\n            \"content\": \"[PREVIEW] \"\n        },\n        {\n            \"operation\": \"retain\",\n            \"length\": 15\n        },\n        {\n            \"operation\": \"delete\",\n            \"length\": 5\n        },\n        {\n            \"operation\": \"insert\",\n            \"content\": \"MODIFIED\"\n        },\n        {\n            \"operation\": \"retain\",\n            \"length\": 25\n        },\n        {\n            \"operation\": \"insert\",\n            \"content\": \" [END PREVIEW]\"\n        }\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8000/api/documents/{{DocumentId}}/preview/",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"documents",
+								"{{DocumentId}}",
+								"preview",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Preview Changes - Empty Changes Error Test",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Token {{Token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"changes\": []\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8000/api/documents/{{DocumentId}}/preview/",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"documents",
+								"{{DocumentId}}",
+								"preview",
+								""
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Error Testing - 4xx Client Errors",
+			"item": [
+				{
+					"name": "Apply Changes Errors",
+					"item": [
+						{
+							"name": "Apply Changes - 400 Invalid JSON",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Token {{Token}}",
+										"type": "text"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"version\": 1,\n    \"changes\": [\n        {\n            \"operation\": \"insert\",\n            \"content\": \"test\"\n        }\n    ] // Invalid JSON - trailing comma and comment\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8000/api/documents/{{DocumentId}}/changes/",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"api",
+										"documents",
+										"{{DocumentId}}",
+										"changes",
+										""
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Apply Changes - 400 Missing Version",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Token {{Token}}",
+										"type": "text"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"changes\": [\n        {\n            \"operation\": \"insert\",\n            \"content\": \"test\"\n        }\n    ]\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8000/api/documents/{{DocumentId}}/changes/",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"api",
+										"documents",
+										"{{DocumentId}}",
+										"changes",
+										""
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Apply Changes - 400 Invalid Operation",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Token {{Token}}",
+										"type": "text"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"version\": 1,\n    \"changes\": [\n        {\n            \"operation\": \"invalid_operation\",\n            \"content\": \"test\"\n        }\n    ]\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8000/api/documents/{{DocumentId}}/changes/",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"api",
+										"documents",
+										"{{DocumentId}}",
+										"changes",
+										""
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Apply Changes - 400 Invalid Parameters",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Token {{Token}}",
+										"type": "text"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"version\": 1,\n    \"changes\": [\n        {\n            \"operation\": \"insert\",\n            \"content\": \"\"\n        },\n        {\n            \"operation\": \"delete\",\n            \"length\": -5\n        },\n        {\n            \"operation\": \"retain\",\n            \"length\": \"not_a_number\"\n        }\n    ]\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8000/api/documents/{{DocumentId}}/changes/",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"api",
+										"documents",
+										"{{DocumentId}}",
+										"changes",
+										""
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Apply Changes - 400 Operations Exceed Length",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Token {{Token}}",
+										"type": "text"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"version\": 1,\n    \"changes\": [\n        {\n            \"operation\": \"retain\",\n            \"length\": 1000\n        },\n        {\n            \"operation\": \"delete\",\n            \"length\": 500\n        }\n    ]\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8000/api/documents/{{DocumentId}}/changes/",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"api",
+										"documents",
+										"{{DocumentId}}",
+										"changes",
+										""
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Apply Changes - 404 Document Not Found",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Token {{Token}}",
+										"type": "text"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"version\": 1,\n    \"changes\": [\n        {\n            \"operation\": \"insert\",\n            \"content\": \"test\"\n        }\n    ]\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8000/api/documents/{{InvalidDocumentId}}/changes/",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"api",
+										"documents",
+										"{{InvalidDocumentId}}",
+										"changes",
+										""
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Apply Changes - 409 Version Conflict",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Token {{Token}}",
+										"type": "text"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"version\": 999,\n    \"changes\": [\n        {\n            \"operation\": \"insert\",\n            \"content\": \"This should cause version conflict\"\n        }\n    ]\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8000/api/documents/{{DocumentId}}/changes/",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"api",
+										"documents",
+										"{{DocumentId}}",
+										"changes",
+										""
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Authentication Errors",
+					"item": [
+						{
+							"name": "Apply Changes - 401 Unauthorized",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"version\": 1,\n    \"changes\": [\n        {\n            \"operation\": \"insert\",\n            \"content\": \"test\"\n        }\n    ]\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8000/api/documents/{{DocumentId}}/changes/",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"api",
+										"documents",
+										"{{DocumentId}}",
+										"changes",
+										""
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Apply Changes - 401 Invalid Token",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Token {{InvalidToken}}",
+										"type": "text"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"version\": 1,\n    \"changes\": [\n        {\n            \"operation\": \"insert\",\n            \"content\": \"test\"\n        }\n    ]\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8000/api/documents/{{DocumentId}}/changes/",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"api",
+										"documents",
+										"{{DocumentId}}",
+										"changes",
+										""
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Preview Endpoint Errors",
+					"item": [
+						{
+							"name": "Preview Changes - 400 Empty Changes",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Token {{Token}}",
+										"type": "text"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"changes\": []\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8000/api/documents/{{DocumentId}}/preview/",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"api",
+										"documents",
+										"{{DocumentId}}",
+										"preview",
+										""
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Preview Changes - 404 Document Not Found",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Token {{Token}}",
+										"type": "text"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"changes\": [\n        {\n            \"operation\": \"insert\",\n            \"content\": \"test\"\n        }\n    ]\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8000/api/documents/{{InvalidDocumentId}}/preview/",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"api",
+										"documents",
+										"{{InvalidDocumentId}}",
+										"preview",
+										""
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Other Endpoint Errors",
+					"item": [
+						{
+							"name": "Search - 400 Missing Query",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Token {{Token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "http://localhost:8000/api/documents/search/",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"api",
+										"documents",
+										"search",
+										""
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Document - 400 Missing Title",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Token {{Token}}",
+										"type": "text"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"content\": \"Document without title\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8000/api/documents/",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"api",
+										"documents",
+										""
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Document - 400 Empty Title",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Token {{Token}}",
+										"type": "text"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"title\": \"\",\n    \"content\": \"Document with empty title\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8000/api/documents/",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"api",
+										"documents",
+										""
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "Token",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "DocumentId",
+			"value": "b2971758-3adf-48a5-b7b8-cf34e6d9a300",
+			"type": "default"
+		},
+		{
+			"key": "search_query",
+			"value": "search",
+			"type": "default"
+		},
+		{
+			"key": "limit",
+			"value": "5",
+			"type": "default"
+		},
+		{
+			"key": "original_content_length",
+			"value": "100",
+			"type": "default"
+		},
+		{
+			"key": "InvalidDocumentId",
+			"value": "00000000-0000-0000-0000-000000000000",
+			"type": "default"
+		},
+		{
+			"key": "MalformedUUID",
+			"value": "not-a-valid-uuid",
+			"type": "default"
+		},
+		{
+			"key": "InvalidToken",
+			"value": "invalid_token_12345",
+			"type": "default"
+		}
+	]
+}

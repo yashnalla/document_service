@@ -38,8 +38,7 @@ class TestLargeDocumentCreation:
             document_size="1MB"
         )
         
-        # Clean up created documents to avoid memory buildup
-        Document.objects.filter(title__startswith="Large Document Test 1MB").delete()
+        # Keep documents in database for analysis
         
         print(f"1MB Document Creation: {result}")
     
@@ -76,8 +75,7 @@ class TestLargeDocumentCreation:
         assert memory_result['peak_memory_mb'] < performance_thresholds['memory_10mb_doc'], \
             f"Memory usage {memory_result['peak_memory_mb']:.2f}MB exceeds threshold"
         
-        # Clean up
-        Document.objects.filter(title__startswith="Large Document Test 10MB").delete()
+        # Keep documents in database for analysis
         
         print(f"10MB Document Creation: {result}")
         print(f"Memory Usage: Peak {memory_result['peak_memory_mb']:.2f}MB, "
@@ -204,8 +202,7 @@ class TestLargeDocumentScalability:
                     content_text=content,
                     user=perf_user
                 )
-                # Clean up immediately to manage memory
-                doc.delete()
+                # Keep document in database
                 return doc
             
             result = benchmark_timer.benchmark_function(
@@ -272,8 +269,7 @@ class TestLargeDocumentScalability:
                 document_size="15MB"
             )
         
-        # Clean up
-        doc.delete()
+        # Keep document in database for analysis
         
         print(f"Concurrent Large Document Operations: {result}")
         print(f"Memory Usage: Peak {memory_result['peak_memory_mb']:.2f}MB")

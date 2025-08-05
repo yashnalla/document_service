@@ -292,23 +292,10 @@ def performance_thresholds():
     }
 
 
-# Cleanup fixtures
-@pytest.fixture(autouse=True)
-def cleanup_performance_data():
-    """Clean up performance test data after each test."""
-    yield
-    # Clean up any test data that might affect other tests
-    # This runs after each test
-    pass
+# Data persistence - no cleanup to keep test documents in database
 
 
-@pytest.fixture(scope="session", autouse=True)
-def cleanup_performance_session():
-    """Clean up performance test data after the session."""
-    yield
-    # Session-level cleanup
-    # Remove temporary files, reset database state, etc.
-    pass
+# Session persistence - no cleanup to keep test documents in database
 
 
 # Pytest collection hook to skip performance tests by default and add database access
@@ -320,10 +307,10 @@ def pytest_collection_modifyitems(config, items):
             if "performance" in item.keywords:
                 item.add_marker(skip_performance)
     else:
-        # Add django_db marker to all performance tests
+        # Add django_db marker to all performance tests (no transaction rollback to persist data)
         for item in items:
             if "performance" in item.keywords:
-                item.add_marker(pytest.mark.django_db(transaction=True))
+                item.add_marker(pytest.mark.django_db)
 
 
 def pytest_addoption(parser):

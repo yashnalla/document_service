@@ -437,8 +437,7 @@ class TestSearchScalability:
             scalability_results[size] = result
             print(f"Search Performance with {size} documents: {result}")
             
-            # Clean up to avoid memory issues
-            Document.objects.filter(id__in=[doc.id for doc in corpus]).delete()
+            # Keep documents in database for analysis
         
         # Analyze scalability trend
         sizes = list(scalability_results.keys())
