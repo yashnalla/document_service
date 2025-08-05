@@ -8,6 +8,7 @@ from documents.serializers import (
     DocumentListSerializer,
     DocumentSerializer,
     DocumentCreateSerializer,
+    ChangeOperationSerializer,
 )
 
 
@@ -287,3 +288,93 @@ def test_document_create_serializer_full_flow(user):
     assert document.content == data["content"]
     assert document.created_by == user
     assert document.version == 1
+
+
+@pytest.mark.django_db
+class TestChangeOperationSerializer:
+    """Test cases for ChangeOperationSerializer whitespace preservation."""
+    
+    def test_insert_operation_preserves_leading_newline(self):
+        """Test that insert operation preserves leading newlines in content."""
+        data = {
+            "operation": "insert",
+            "content": "\nadd 2"  # Leading newline should be preserved
+        }
+        
+        serializer = ChangeOperationSerializer(data=data)
+        assert serializer.is_valid(), f"Validation errors: {serializer.errors}"
+        
+        validated_data = serializer.validated_data
+        assert validated_data["content"] == "\nadd 2"  # Should preserve newline
+    
+    def test_insert_operation_preserves_trailing_newline(self):
+        """Test that insert operation preserves trailing newlines in content."""
+        data = {
+            "operation": "insert",
+            "content": "add text\n"  # Trailing newline should be preserved
+        }
+        
+        serializer = ChangeOperationSerializer(data=data)
+        assert serializer.is_valid(), f"Validation errors: {serializer.errors}"
+        
+        validated_data = serializer.validated_data
+        assert validated_data["content"] == "add text\n"  # Should preserve newline
+    
+    def test_insert_operation_preserves_crlf_line_endings(self):
+        """Test that insert operation preserves CRLF line endings."""
+        data = {
+            "operation": "insert",
+            "content": "\r\nadd 2"  # CRLF should be preserved as-is
+        }
+        
+        serializer = ChangeOperationSerializer(data=data)
+        assert serializer.is_valid(), f"Validation errors: {serializer.errors}"
+        
+        validated_data = serializer.validated_data
+        assert validated_data["content"] == "\r\nadd 2"  # Should preserve CRLF
+    
+    def test_insert_operation_preserves_multiple_newlines(self):
+        """Test that insert operation preserves multiple newlines."""
+        data = {
+            "operation": "insert",
+            "content": "\n\nadd multiple lines\n\n"
+        }
+        
+        serializer = ChangeOperationSerializer(data=data)
+        assert serializer.is_valid(), f"Validation errors: {serializer.errors}"
+        
+        validated_data = serializer.validated_data
+        assert validated_data["content"] == "\n\nadd multiple lines\n\n"
+    
+    def test_insert_operation_preserves_mixed_whitespace(self):
+        """Test that insert operation preserves mixed whitespace characters."""
+        data = {
+            "operation": "insert",
+            "content": " \t\nadd with spaces and tabs\t \n"
+        }
+        
+        serializer = ChangeOperationSerializer(data=data)
+        assert serializer.is_valid(), f"Validation errors: {serializer.errors}"
+        
+        validated_data = serializer.validated_data
+        assert validated_data["content"] == " \t\nadd with spaces and tabs\t \n"
+    
+    def test_retain_delete_operations_unaffected(self):
+        """Test that retain and delete operations are unaffected by whitespace settings."""
+        # Test retain operation
+        retain_data = {
+            "operation": "retain",
+            "length": 5
+        }
+        
+        serializer = ChangeOperationSerializer(data=retain_data)
+        assert serializer.is_valid(), f"Validation errors: {serializer.errors}"
+        
+        # Test delete operation
+        delete_data = {
+            "operation": "delete",
+            "length": 3
+        }
+        
+        serializer = ChangeOperationSerializer(data=delete_data)
+        assert serializer.is_valid(), f"Validation errors: {serializer.errors}"

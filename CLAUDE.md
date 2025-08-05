@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a sophisticated Django document management service designed for collaborative editing with Lexical editor integration. Built with Python 3.11, Poetry for dependency management, and Docker for containerization. The project implements a dual-interface architecture (REST API + Web UI) with advanced features including real-time change tracking, optimistic locking, version control, and comprehensive audit trails.
+This is a sophisticated Django document management service designed for collaborative editing. Built with Python 3.11, Poetry for dependency management, and Docker for containerization. The project implements a dual-interface architecture (REST API + Web UI) with advanced features including real-time change tracking, optimistic locking, version control, and comprehensive audit trails.
 
 ## Development Environment
 
@@ -105,7 +105,7 @@ The application implements a comprehensive service layer pattern for business lo
 - **Centralized Business Logic**: All document operations flow through the service layer
 - **Transaction Management**: Atomic operations with automatic rollback on failures
 - **User Management**: Handles both authenticated and anonymous user scenarios
-- **Content Processing**: Bidirectional conversion between plain text and Lexical JSON format
+- **Content Processing**: Direct plain text processing and storage
 - **Change Tracking**: Comprehensive audit trail with user attribution and version tracking
 
 **Key Service Methods:**
@@ -126,10 +126,9 @@ The core `Document` model (`documents/models.py`) is engineered for distributed 
 - Eliminates conflicts in multi-instance deployments and database replication scenarios
 
 **Content Management:**
-- **JSONField content** with `default=dict` optimized for Lexical editor state storage
+- **TextField content** with `default=""` for plain text storage
 - **Intelligent version tracking** with automatic increment only on actual content/title changes
 - **Smart save() override** that compares existing vs new data to prevent unnecessary version bumps
-- **Lexical content validation** and processing through utility functions
 
 **Optimistic Locking:**
 - **ETag generation** via MD5 hash of `content + version` for conflict detection
@@ -142,10 +141,8 @@ The core `Document` model (`documents/models.py`) is engineered for distributed 
 - **Anonymous user support** via fallback "anonymous" user creation
 
 **Content Processing:**
-- **get_plain_text() method**: Recursive extraction of text from Lexical JSON structure
-- **Handles multiple Lexical formats**: Both `root.children` and alternative `content` structures  
-- **Text node traversal**: Deep parsing of nested Lexical node hierarchies
-- **Bidirectional processing**: Conversion between plain text and structured Lexical content
+- **get_plain_text property**: Simple property that returns `self.content or ""`
+- **Direct text access**: Content stored as plain text for simplicity and performance
 
 **Temporal Tracking:**
 - **created_at**: Auto-populated timestamp (auto_now_add=True)
@@ -162,7 +159,7 @@ The core `Document` model (`documents/models.py`) is engineered for distributed 
 - `increment_version()`: Manual version increment with save
 - `update_search_vector()`: Regenerate search vector with weighted content
 - `get_absolute_url()`: Returns web interface URL for the document
-- `get_plain_text()`: Extract plain text from Lexical JSON for search indexing
+- `get_plain_text`: Property that returns plain text content for search indexing
 - `__str__()`: Returns document title
 - `__repr__()`: Returns detailed representation with title and version
 
@@ -250,30 +247,18 @@ The system implements a **three-layer architecture** for handling document chang
 - **Validation**: Comprehensive validation of OT operations before application
 - **Transaction safety**: Atomic operations with proper error handling
 
-### Lexical Editor Integration
-The system provides comprehensive support for Lexical editor content through utility functions (`documents/utils.py`):
+### Plain Text Content System
+The system uses a straightforward plain text content system for document storage and processing:
 
-**Content Validation:**
-- `validate_lexical_content()`: Structural validation of Lexical JSON format
-- **Root structure checking**: Ensures proper `root.children` hierarchy
-- **Type validation**: Verifies correct node types and structure
+**Content Storage:**
+- **Direct text storage**: Documents store content as plain text in TextField
+- **Simple processing**: No complex JSON parsing or structure validation required
+- **Efficient search**: Plain text enables direct full-text search integration
 
 **Content Processing:**
-- `update_lexical_content_with_text()`: Converts plain text to Lexical structure
-- **Paragraph handling**: Splits text by newlines into paragraph nodes
-- **Text node creation**: Generates proper Lexical text nodes with formatting attributes
-- **Empty content handling**: Creates proper empty paragraph structures
-
-**Content Creation:**
-- `create_basic_lexical_content()`: Generates minimal valid Lexical structure
-- **Default attributes**: Includes proper format, indent, version, and mode attributes
-- **Flexible input**: Handles both empty and populated text content
-
-**Text Extraction:**
-- `extract_text_from_lexical()`: Recursive plain text extraction from Lexical structures
-- **Node traversal**: Deep traversal of nested node hierarchies
-- **Format agnostic**: Handles various Lexical node structures and formats
-- **Text aggregation**: Intelligent joining of text fragments with appropriate spacing
+- **Direct access**: Content accessed directly via document.content field
+- **Search integration**: Plain text content directly indexed for search
+- **Version tracking**: Changes tracked through simple text comparison
 
 **Multi-Database Architecture:**
 - **PostgreSQL primary**: Full ACID compliance for document data integrity
@@ -317,7 +302,7 @@ The application implements enterprise-grade full-text search using PostgreSQL's 
 - **Ranking**: PostgreSQL ts_rank scoring for relevance-based result ordering
 - **User Filtering**: Toggle between personal documents and global search
 - **Content Snippets**: Automatically truncated 200-character content previews
-- **Multi-format Support**: Searches both document titles and Lexical JSON content
+- **Multi-format Support**: Searches both document titles and plain text content
 
 **Search Implementation:**
 - **Service Layer**: `DocumentService.search_documents()` and `search_user_documents()` methods
@@ -326,7 +311,7 @@ The application implements enterprise-grade full-text search using PostgreSQL's 
 - **Management Commands**: `update_search_vectors` and `search_stats` for maintenance
 
 **Query Processing:**
-- **Text Extraction**: Recursive parsing of Lexical JSON structures via `get_plain_text()`
+- **Direct Text Access**: Plain text content accessed directly from TextField
 - **Search Query**: PostgreSQL `SearchQuery` with phrase and term support
 - **Result Ranking**: `SearchRank` with vector weighting for relevance scoring
 - **Permission Filtering**: User-based document access control in search results
@@ -551,7 +536,7 @@ The application implements a hybrid architecture where the **web interface acts 
 - **ETag support**: Computed ETag field for optimistic locking
 - **User relationship serialization**: Full user details for created_by and last_modified_by
 - **Computed fields**: Human-readable user names via SerializerMethodField
-- **Content validation**: Ensures JSONField contains valid dictionary data
+- **Content validation**: Ensures TextField contains valid text data
 - **Service layer integration**: Updates route through DocumentService
 
 **3. DocumentCreateSerializer:**
@@ -579,7 +564,7 @@ The application implements a hybrid architecture where the **web interface acts 
 
 **7. DocumentSearchResultSerializer:**
 - **Search optimization**: Lightweight serializer for search results
-- **Content snippets**: Automatically truncated content previews (200 characters)
+- **Content snippets**: Automatically truncated plain text previews (200 characters)
 - **Search ranking**: Includes PostgreSQL search rank scores
 - **User attribution**: Human-readable creator names
 - **Performance focused**: Minimal data transfer for fast search responses
@@ -638,7 +623,7 @@ The web interface provides a complete document management system with responsive
 
 **DocumentForm:**
 - **Crispy Forms integration**: Bootstrap 5 styled forms with layout control
-- **Plain text content**: Converts between plain text input and Lexical JSON
+- **Plain text content**: Direct plain text input and storage
 - **Auto-save support**: Designed for AJAX auto-save functionality
 - **Validation**: Title requirement and content processing
 
@@ -781,11 +766,11 @@ The testing strategy emphasizes comprehensive coverage with realistic scenarios:
 - **URL safety**: Clean, unguessable URLs for document access
 - **Merge compatibility**: Enables database merging without ID conflicts
 
-**JSONField Content Storage:**
-- **Lexical editor optimization**: Native support for structured editor content
-- **Schema flexibility**: Accommodates evolving content structures
-- **Query capabilities**: PostgreSQL JSON querying for search functionality
-- **Version compatibility**: Backward compatibility with content format changes
+**TextField Content Storage:**
+- **Plain text simplicity**: Direct text storage for optimal performance
+- **Search optimization**: Native PostgreSQL full-text search integration
+- **Query efficiency**: Simple text-based queries and operations
+- **Version compatibility**: Straightforward content comparison and tracking
 
 **Optimistic Locking with ETags:**
 - **Conflict prevention**: Prevents lost updates in concurrent editing scenarios
@@ -815,7 +800,7 @@ The testing strategy emphasizes comprehensive coverage with realistic scenarios:
 - **Live search interface**: HTMX-powered real-time search with 300ms debouncing
 - **Content snippets**: Automatic 200-character content previews in search results
 - **User filtering**: Toggle between personal documents and global search results
-- **Multi-format support**: Searches both document titles and Lexical JSON content
+- **Multi-format support**: Searches both document titles and plain text content
 
 **Comprehensive Audit Trail:**
 - **Complete change history**: Every document modification is tracked

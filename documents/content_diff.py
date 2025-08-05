@@ -218,6 +218,25 @@ class ContentDiffGenerator:
             return False
     
     @staticmethod
+    def normalize_line_endings(text: str) -> str:
+        """
+        Normalize line endings to Unix format (\n).
+        
+        Converts Windows (\r\n) and classic Mac (\r) line endings to Unix (\n).
+        This ensures consistent line ending handling across different platforms
+        and web form submissions.
+        
+        Args:
+            text: Text with potentially mixed line endings
+            
+        Returns:
+            Text with normalized Unix line endings
+        """
+        # First convert \r\n to \n (Windows to Unix)
+        # Then convert remaining \r to \n (classic Mac to Unix)
+        return text.replace('\r\n', '\n').replace('\r', '\n')
+
+    @staticmethod
     def create_api_payload(
         document_id: str,
         old_content: str,
@@ -242,9 +261,20 @@ class ContentDiffGenerator:
         """
         logger.info(f"Creating API payload for document {document_id}")
         logger.info(f"Old content length: {len(old_content)}, New content length: {len(new_content)}")
+        logger.info(f"Old content repr: {repr(old_content)}")
+        logger.info(f"New content repr: {repr(new_content)}")
+        logger.info(f"Old content visual: {old_content.replace(chr(10), '¶LF').replace(chr(13), '¶CR')}")
+        logger.info(f"New content visual: {new_content.replace(chr(10), '¶LF').replace(chr(13), '¶CR')}")
+        
+        # Normalize line endings to ensure consistency
+        normalized_old_content = ContentDiffGenerator.normalize_line_endings(old_content)
+        normalized_new_content = ContentDiffGenerator.normalize_line_endings(new_content)
+        
+        logger.info(f"Normalized old content repr: {repr(normalized_old_content)}")
+        logger.info(f"Normalized new content repr: {repr(normalized_new_content)}")
         
         change_data = ContentDiffGenerator.generate_operations_from_form_data(
-            old_content, new_content, document_version, cursor_position
+            normalized_old_content, normalized_new_content, document_version, cursor_position
         )
         
         logger.info(f"Generated {len(change_data['changes'])} operations")
@@ -256,8 +286,8 @@ class ContentDiffGenerator:
             )
             logger.info(f"Optimized operations from {original_count} to {len(change_data['changes'])}")
         
-        # Validate operations before creating payload
-        if not ContentDiffGenerator.validate_operations(change_data["changes"], old_content):
+        # Validate operations before creating payload using normalized content
+        if not ContentDiffGenerator.validate_operations(change_data["changes"], normalized_old_content):
             logger.error("Generated operations failed validation")
             raise ValueError("Generated operations are invalid")
         

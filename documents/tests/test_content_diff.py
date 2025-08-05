@@ -608,3 +608,199 @@ Third paragraph is also changed."""
         # Verify correctness
         result = apply_operations_to_text(payload["changes"], old_content)
         assert result == new_content
+
+
+@pytest.mark.django_db  
+class TestContentDiffGeneratorLineEndings:
+    """Test cases specifically for line ending handling issues."""
+    
+    def test_crlf_line_endings_simple_addition(self):
+        """Test adding content with CRLF line endings (simulating web form)."""
+        document_id = "crlf-test"
+        old_content = "add 1"
+        new_content = "add 1\r\nadd 2"  # Simulates web form submission
+        version = 1
+        
+        payload = ContentDiffGenerator.create_api_payload(
+            document_id=document_id,
+            old_content=old_content,
+            new_content=new_content,
+            document_version=version
+        )
+        
+        assert len(payload["changes"]) > 0
+        
+        # Should have retain for "add 1" and insert for line + "add 2"
+        operations = [change["operation"] for change in payload["changes"]]
+        assert "retain" in operations
+        assert "insert" in operations
+        
+        # Find the insert operation
+        insert_ops = [change for change in payload["changes"] if change["operation"] == "insert"]
+        assert len(insert_ops) == 1
+        
+        # The insert should contain the newline and "add 2"
+        insert_content = insert_ops[0]["content"]
+        assert "add 2" in insert_content
+        # Should have some form of newline (either \n or \r\n)
+        assert "\n" in insert_content or "\r" in insert_content
+        
+        # Verify the transformation works
+        result = apply_operations_to_text(payload["changes"], old_content)
+        # Result should have normalized line endings
+        expected_result = "add 1\nadd 2"  # Normalized to Unix
+        assert result == expected_result
+
+    def test_crlf_multiline_content(self):
+        """Test CRLF handling with multiple lines."""
+        document_id = "crlf-multiline-test"
+        old_content = "line 1\nline 2\nline 3"  # Unix endings (from database)
+        new_content = "line 1\r\nline 2\r\nline 3\r\nline 4"  # Web form with CRLF
+        version = 1
+        
+        payload = ContentDiffGenerator.create_api_payload(
+            document_id=document_id,
+            old_content=old_content,
+            new_content=new_content,
+            document_version=version
+        )
+        
+        assert len(payload["changes"]) > 0
+        
+        # Verify the transformation works (using normalized old content)
+        normalized_old_content = ContentDiffGenerator.normalize_line_endings(old_content)
+        result = apply_operations_to_text(payload["changes"], normalized_old_content)
+        # Should normalize to Unix line endings
+        expected_result = "line 1\nline 2\nline 3\nline 4"
+        assert result == expected_result
+
+    def test_mixed_line_endings(self):
+        """Test handling mixed line endings."""
+        document_id = "mixed-endings-test"
+        old_content = "line 1\nline 2\r\nline 3"  # Mixed endings
+        new_content = "line 1\r\nline 2\r\nline 3\nadd line 4"  # More mixed
+        version = 1
+        
+        payload = ContentDiffGenerator.create_api_payload(
+            document_id=document_id,
+            old_content=old_content,
+            new_content=new_content,
+            document_version=version
+        )
+        
+        assert len(payload["changes"]) > 0
+        
+        # Verify the transformation works (using normalized old content)
+        normalized_old_content = ContentDiffGenerator.normalize_line_endings(old_content)
+        result = apply_operations_to_text(payload["changes"], normalized_old_content)
+        # Should normalize consistently
+        expected_normalized = "line 1\nline 2\nline 3\nadd line 4"
+        assert result == expected_normalized
+
+    def test_web_form_simulation_exact_scenario(self):
+        """Test the exact scenario from the user's change history."""
+        document_id = "exact-scenario-test"
+        old_content = "add 1"  # Version 2 content
+        new_content = "add 1\r\nadd 2"  # What web form should submit for version 3
+        version = 2
+        
+        payload = ContentDiffGenerator.create_api_payload(
+            document_id=document_id,
+            old_content=old_content,
+            new_content=new_content,
+            document_version=version
+        )
+        
+        # Should generate:
+        # 1. Retain 5 characters ("add 1") 
+        # 2. Insert "\nadd 2" (normalized from "\r\nadd 2")
+        
+        assert len(payload["changes"]) == 2
+        
+        # First operation should be retain
+        assert payload["changes"][0]["operation"] == "retain"
+        assert payload["changes"][0]["length"] == 5
+        
+        # Second operation should be insert
+        assert payload["changes"][1]["operation"] == "insert"
+        insert_content = payload["changes"][1]["content"]
+        
+        # The insert should contain normalized newline + "add 2"
+        assert insert_content == "\nadd 2"  # Should be normalized to Unix
+        
+        # Verify the transformation works
+        result = apply_operations_to_text(payload["changes"], old_content)
+        assert result == "add 1\nadd 2"
+
+    def test_carriage_return_only(self):
+        """Test handling of old Mac-style CR-only line endings."""
+        document_id = "cr-only-test"
+        old_content = "line 1\rline 2"  # Old Mac style
+        new_content = "line 1\r\nmodified line 2"  # Web form style
+        version = 1
+        
+        payload = ContentDiffGenerator.create_api_payload(
+            document_id=document_id,
+            old_content=old_content,
+            new_content=new_content,
+            document_version=version
+        )
+        
+        assert len(payload["changes"]) > 0
+        
+        # Should normalize both to Unix line endings (using normalized old content)
+        normalized_old_content = ContentDiffGenerator.normalize_line_endings(old_content)
+        result = apply_operations_to_text(payload["changes"], normalized_old_content)
+        expected_result = "line 1\nmodified line 2"
+        assert result == expected_result
+
+    def test_line_ending_normalization_consistency(self):
+        """Test that line ending normalization is consistent."""
+        document_id = "consistency-test"
+        
+        # Test various line ending combinations
+        test_cases = [
+            ("text\r\n", "text\r\nmore"),  # CRLF
+            ("text\n", "text\nmore"),      # LF  
+            ("text\r", "text\rmore"),      # CR
+            ("text\r\n\r\n", "text\r\n\r\nmore"),  # Double CRLF
+        ]
+        
+        for old_content, new_content in test_cases:
+            payload = ContentDiffGenerator.create_api_payload(
+                document_id=document_id,
+                old_content=old_content,
+                new_content=new_content,
+                document_version=1
+            )
+            
+            # Should always be able to apply operations (using normalized old content)
+            normalized_old_content = ContentDiffGenerator.normalize_line_endings(old_content)
+            result = apply_operations_to_text(payload["changes"], normalized_old_content)
+            
+            # Result should have normalized line endings
+            # All line endings should be normalized to \n
+            assert "\r\n" not in result  # No CRLF should remain
+            assert "\r" not in result.replace("\n", "")  # No standalone CR
+
+    def test_preserve_content_with_line_ending_normalization(self):
+        """Test that content is preserved correctly with line ending normalization."""
+        document_id = "preserve-test"
+        old_content = "First paragraph.\r\n\r\nSecond paragraph with special chars: @#$%"
+        new_content = "First paragraph.\r\n\r\nSecond paragraph with special chars: @#$%\r\nThird paragraph added."
+        version = 1
+        
+        payload = ContentDiffGenerator.create_api_payload(
+            document_id=document_id,
+            old_content=old_content,
+            new_content=new_content,
+            document_version=version
+        )
+        
+        # Use normalized old content for validation
+        normalized_old_content = ContentDiffGenerator.normalize_line_endings(old_content)
+        result = apply_operations_to_text(payload["changes"], normalized_old_content)
+        
+        # Content should be preserved, just with normalized line endings
+        expected_result = "First paragraph.\n\nSecond paragraph with special chars: @#$%\nThird paragraph added."
+        assert result == expected_result

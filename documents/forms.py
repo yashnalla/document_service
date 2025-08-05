@@ -16,6 +16,15 @@ class DocumentForm(forms.ModelForm):
         help_text="Enter your document content as plain text"
     )
     
+    def clean_content(self):
+        """Clean and normalize line endings in content."""
+        content = self.cleaned_data.get('content', '')
+        # Normalize line endings to Unix format for consistency
+        # First convert \r\n to \n (Windows to Unix)
+        # Then convert remaining \r to \n (classic Mac to Unix)
+        normalized_content = content.replace('\r\n', '\n').replace('\r', '\n')
+        return normalized_content
+    
     class Meta:
         model = Document
         fields = ['content']  # Only content field - title is immutable

@@ -164,3 +164,60 @@ class TestDocumentFormIntegration:
         assert document.title == 'Empty Document'
         assert document.get_plain_text == ''
         assert document.content == ''
+
+
+@pytest.mark.django_db
+class TestDocumentFormLineEndingNormalization:
+    """Test line ending normalization in forms."""
+    
+    def setup_method(self):
+        self.user = User.objects.create_user('testuser', 'test@example.com', 'password')
+    
+    def test_document_form_normalizes_crlf_line_endings(self):
+        """Test that DocumentForm normalizes CRLF line endings."""
+        form_data = {'content': 'line 1\r\nline 2\r\nline 3'}
+        form = DocumentForm(data=form_data)
+        
+        assert form.is_valid()
+        
+        # Content should be normalized to Unix line endings
+        normalized_content = form.cleaned_data['content']
+        assert normalized_content == 'line 1\nline 2\nline 3'
+        assert '\r\n' not in normalized_content
+        assert '\r' not in normalized_content
+    
+    def test_document_form_normalizes_cr_line_endings(self):
+        """Test that DocumentForm normalizes CR-only line endings."""
+        form_data = {'content': 'line 1\rline 2\rline 3'}
+        form = DocumentForm(data=form_data)
+        
+        assert form.is_valid()
+        
+        # Content should be normalized to Unix line endings
+        normalized_content = form.cleaned_data['content']
+        assert normalized_content == 'line 1\nline 2\nline 3'
+        assert '\r' not in normalized_content
+    
+    def test_document_form_preserves_unix_line_endings(self):
+        """Test that DocumentForm preserves existing Unix line endings."""
+        form_data = {'content': 'line 1\nline 2\nline 3'}
+        form = DocumentForm(data=form_data)
+        
+        assert form.is_valid()
+        
+        # Content should remain unchanged
+        normalized_content = form.cleaned_data['content']
+        assert normalized_content == 'line 1\nline 2\nline 3'
+    
+    def test_document_form_normalizes_mixed_line_endings(self):
+        """Test that DocumentForm handles mixed line endings."""
+        form_data = {'content': 'line 1\r\nline 2\nline 3\rline 4'}
+        form = DocumentForm(data=form_data)
+        
+        assert form.is_valid()
+        
+        # All line endings should be normalized to Unix
+        normalized_content = form.cleaned_data['content']
+        assert normalized_content == 'line 1\nline 2\nline 3\nline 4'
+        assert '\r\n' not in normalized_content
+        assert '\r' not in normalized_content

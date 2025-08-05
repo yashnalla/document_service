@@ -122,7 +122,7 @@ class ChangeOperationSerializer(serializers.Serializer):
 
     operation = serializers.CharField()
     # Sequential OT operation fields (no absolute positions)
-    content = serializers.CharField(required=False, allow_blank=True)
+    content = serializers.CharField(required=False, allow_blank=True, trim_whitespace=False)
     length = serializers.IntegerField(required=False)
 
     def validate(self, data):
